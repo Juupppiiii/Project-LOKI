@@ -1,0 +1,9 @@
+canonical,aliases,note
+disk space,disk full|low disk|disk capacity|out of space|space issue,Monitoring alerts phrase this many ways
+account locked,locked out|account is locked|cannot login|can't log in|login failure,Service Desk wording varies by region
+unlock account,unlock ad|unlock id|reset lockout,
+service stopped,service not running|svc down|agent down|netprobe down|not running,Matches monitoring alert text
+reboot,power cycle|power off|restart server|bounce the server,
+high cpu,cpu utilization|cpu high|cpu maxed|processor high,
+shared folder,shared drive|network drive|mapped drive|file share,
+vpn,unable to connect to vpn|cannot connect to vpn|vpn not working,

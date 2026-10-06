@@ -1,0 +1,276 @@
+{
+  "procedures": [
+    {
+      "procedure_id": "wintel.packet_loss",
+      "name": "Network packet loss / host unreachable",
+      "trigger": {
+        "keywords": [
+          "packet loss",
+          "packet",
+          "unreachable",
+          "100% packet"
+        ],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        {
+          "name": "server",
+          "type": "hostname",
+          "source": "cmdb_ci"
+        }
+      ],
+      "steps": [
+        {
+          "action": "connect",
+          "target": "{server}",
+          "description": "Open a remoting session"
+        },
+        {
+          "action": "check",
+          "description": "TODO: replace with real resolution step(s)",
+          "command": "TODO"
+        },
+        {
+          "action": "notify",
+          "description": "Post work note with outcome"
+        }
+      ],
+      "automatability": "low",
+      "frequency": 715,
+      "source_tickets": [
+        "INC72833475",
+        "INC72841184",
+        "INC72843885",
+        "INC72843934",
+        "INC72843943"
+      ],
+      "notes": "AUTO-DRAFT for review. Observed resolutions: login to ilo check all components and status all green for the components no further action needed | completed | NetprobeNT_64 has been restarted and confirmed running",
+      "_observed_resolutions": [
+        "login to ilo check all components and status all green for the components no further action needed",
+        "completed",
+        "NetprobeNT_64 has been restarted and confirmed running",
+        "Our own team resolved the issue",
+        "information provided to caller"
+      ],
+      "_status": "draft_needs_review"
+    },
+    {
+      "procedure_id": "wintel.hardware_crit",
+      "name": "Hardware component critical (storage/temperature)",
+      "trigger": {
+        "keywords": [
+          "crit",
+          "critical condition",
+          "temperature",
+          "controller",
+          "smart array",
+          "component state"
+        ],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        {
+          "name": "server",
+          "type": "hostname",
+          "source": "cmdb_ci"
+        }
+      ],
+      "steps": [
+        {
+          "action": "connect",
+          "target": "{server}",
+          "description": "Open a remoting session"
+        },
+        {
+          "action": "notify",
+          "description": "TODO: replace with real resolution step(s)",
+          "command": "TODO"
+        },
+        {
+          "action": "notify",
+          "description": "Post work note with outcome"
+        }
+      ],
+      "automatability": "low",
+      "frequency": 702,
+      "source_tickets": [
+        "INC72816158",
+        "INC72817079",
+        "INC72843885",
+        "INC72843934",
+        "INC72843943"
+      ],
+      "notes": "AUTO-DRAFT for review. Observed resolutions: login to ilo check all components and status all green for the components no further action needed | IAS team removed \"scheduled_task collector\" on otel-config file and confirmed CPU utilization is below 20%. | Power Automate - SNow Bulk Close AppD about to breach SLA",
+      "_observed_resolutions": [
+        "login to ilo check all components and status all green for the components no further action needed",
+        "IAS team removed \"scheduled_task collector\" on otel-config file and confirmed CPU utilization is below 20%.",
+        "Power Automate - SNow Bulk Close AppD about to breach SLA",
+        "Disk C Cleanup completed on both instances.",
+        "completed by emmanuel"
+      ],
+      "_status": "draft_needs_review"
+    },
+    {
+      "procedure_id": "wintel.high_cpu",
+      "name": "High CPU utilisation",
+      "trigger": {
+        "keywords": [
+          "cpu",
+          "utilization",
+          "utilisation",
+          "high cpu"
+        ],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        {
+          "name": "server",
+          "type": "hostname",
+          "source": "cmdb_ci"
+        }
+      ],
+      "steps": [
+        {
+          "action": "connect",
+          "target": "{server}",
+          "description": "Open a remoting session"
+        },
+        {
+          "action": "run_command",
+          "description": "TODO: replace with real resolution step(s)",
+          "command": "TODO"
+        },
+        {
+          "action": "notify",
+          "description": "Post work note with outcome"
+        }
+      ],
+      "automatability": "low",
+      "frequency": 57,
+      "source_tickets": [
+        "INC72816158",
+        "INC72817079",
+        "INC72843885",
+        "INC72843934",
+        "INC72843943"
+      ],
+      "notes": "AUTO-DRAFT for review. Observed resolutions: IAS team removed \"scheduled_task collector\" on otel-config file and confirmed CPU utilization is below 20%. | Power Automate - SNow Bulk Close AppD about to breach SLA | System is closing the ticket as no response received from caller",
+      "_observed_resolutions": [
+        "IAS team removed \"scheduled_task collector\" on otel-config file and confirmed CPU utilization is below 20%.",
+        "Power Automate - SNow Bulk Close AppD about to breach SLA",
+        "System is closing the ticket as no response received from caller",
+        "Sender has been whitelisted",
+        "req has been raised to move the scan schedule to original date"
+      ],
+      "_status": "draft_needs_review"
+    },
+    {
+      "procedure_id": "wintel.login_access",
+      "name": "Server login / access failure",
+      "trigger": {
+        "keywords": [
+          "login failed",
+          "unable to access",
+          "login issue",
+          "cannot access",
+          "access denied"
+        ],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        {
+          "name": "server",
+          "type": "hostname",
+          "source": "cmdb_ci"
+        }
+      ],
+      "steps": [
+        {
+          "action": "connect",
+          "target": "{server}",
+          "description": "Open a remoting session"
+        },
+        {
+          "action": "check",
+          "description": "TODO: replace with real resolution step(s)",
+          "command": "TODO"
+        },
+        {
+          "action": "notify",
+          "description": "Post work note with outcome"
+        }
+      ],
+      "automatability": "low",
+      "frequency": 17,
+      "source_tickets": [
+        "INC72811301",
+        "INC72811693",
+        "INC72815996",
+        "INC72939049",
+        "INC72981157"
+      ],
+      "notes": "AUTO-DRAFT for review. Observed resolutions: Server Rebooted. | We dont see SQL* related service running on both servers | no sql software or services found in the servers no further action needed",
+      "_observed_resolutions": [
+        "Server Rebooted.",
+        "We dont see SQL* related service running on both servers",
+        "no sql software or services found in the servers no further action needed",
+        "This is an issue on OKTA side and has been resolved. Global Okta issue",
+        "Wintel Support restart the server due to it is in Hang State. Confirmed all OK by SysOps. Closing Incident"
+      ],
+      "_status": "draft_needs_review"
+    },
+    {
+      "procedure_id": "wintel.high_memory_swap",
+      "name": "High memory / swap usage",
+      "trigger": {
+        "keywords": [
+          "swap",
+          "memory",
+          "high swap",
+          "high memory"
+        ],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        {
+          "name": "server",
+          "type": "hostname",
+          "source": "cmdb_ci"
+        }
+      ],
+      "steps": [
+        {
+          "action": "connect",
+          "target": "{server}",
+          "description": "Open a remoting session"
+        },
+        {
+          "action": "run_command",
+          "description": "TODO: replace with real resolution step(s)",
+          "command": "TODO"
+        },
+        {
+          "action": "notify",
+          "description": "Post work note with outcome"
+        }
+      ],
+      "automatability": "low",
+      "frequency": 6,
+      "source_tickets": [
+        "INC72845894",
+        "INC72942020",
+        "INC72942839",
+        "INC73032121",
+        "INC73088181"
+      ],
+      "notes": "AUTO-DRAFT for review. Observed resolutions: there is a valid memory processes that triggers high swap usage | resolving this ticket alert this is currently working on this ticket INC72942020 by Gerwin of Wintel Team | server has high mem utilization which are all valid causing to have high swap util.",
+      "_observed_resolutions": [
+        "there is a valid memory processes that triggers high swap usage",
+        "resolving this ticket alert this is currently working on this ticket INC72942020 by Gerwin of Wintel Team",
+        "server has high mem utilization which are all valid causing to have high swap util.",
+        "locked file has been terminated"
+      ],
+      "_status": "draft_needs_review"
+    }
+  ]
+}

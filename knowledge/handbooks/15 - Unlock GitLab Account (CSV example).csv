@@ -1,0 +1,10 @@
+procedure_id,name,assignment_group,keywords,parameters,step,action,description,command,risk
+custom.unlock_gitlab,Unlock a GitLab account,Global IT Security IDAM,unlock gitlab|gitlab account|please unlock gitlab,username,1,check,Confirm the GitLab account is locked,Get-GitLabUser {username},R0
+custom.unlock_gitlab,,,,,2,check,Confirm the requester owns the account,,R0
+custom.unlock_gitlab,,,,,3,run_command,Unlock the GitLab account,Unblock-GitLabUser {username},
+custom.unlock_gitlab,,,,,4,check,Confirm the account is active again,Get-GitLabUser {username},R0
+custom.unlock_gitlab,,,,,5,notify,Tell the requester they can sign in,,
+custom.shared_drive_remap,Remap a missing shared drive,TP ICAP End User Services Europe,shared folder|shared drive|unable to access shared folder|missing drive,username,1,check,Confirm which share is missing,,R0
+custom.shared_drive_remap,,,,,2,check,Confirm the user still has permission to the share,,R0
+custom.shared_drive_remap,,,,,3,manual,Remap the drive on the user's machine,,
+custom.shared_drive_remap,,,,,4,notify,Confirm with the user that the drive is back,,

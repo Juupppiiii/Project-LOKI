@@ -1,0 +1,143 @@
+{
+  "_comment": "System 2 rule set. Seeded from real 'Global Wintel Server Support' resolution notes in the extracted data. Commands are illustrative templates for SIMULATION ONLY - review before any real use. {param} tokens are filled from the ticket at match time.",
+  "procedures": [
+    {
+      "procedure_id": "wintel.disk_cleanup",
+      "name": "Windows disk space cleanup",
+      "trigger": {
+        "keywords": ["disk space", "c disk", "c drive", "low disk", "cleanup", "disk full", "tpvol"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "description": "Target Windows server" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a remoting session to the server" },
+        { "action": "check", "command": "Get-PSDrive C | Select-Object Used,Free", "expect": "free_gb < 10", "description": "Confirm C: is low on space" },
+        { "action": "run_command", "command": "cleanmgr /sagerun:1", "description": "Run Windows Disk Cleanup" },
+        { "action": "run_command", "command": "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", "description": "Empty recycle bin" },
+        { "action": "run_command", "command": "Remove-Item C:\\Windows\\Temp\\* -Recurse -Force -ErrorAction SilentlyContinue", "description": "Clear temp files" },
+        { "action": "check", "command": "Get-PSDrive C | Select-Object Free", "expect": "free_gb > 10", "description": "Verify space recovered" },
+        { "action": "notify", "description": "Post work note: disk cleanup performed, free space recovered" }
+      ],
+      "automatability": "high",
+      "frequency": 7,
+      "source_tickets": ["TPVOL ldn2ws9696 C Disk Space"],
+      "notes": "Derived from close_notes like 'performed disk cleanup', 'Cleanup completed', 'perform cleanup of files for service account'."
+    },
+    {
+      "procedure_id": "wintel.server_reboot",
+      "name": "Reboot Windows server",
+      "trigger": {
+        "keywords": ["reboot", "restart server", "power off", "power cycle", "unresponsive", "hung", "server down"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "description": "Target Windows server" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a remoting session to the server" },
+        { "action": "check", "command": "Test-Connection {server} -Count 2", "expect": "reachable", "description": "Confirm current reachability" },
+        { "action": "notify", "description": "Announce planned reboot on the ticket" },
+        { "action": "reboot", "target": "{server}", "description": "Restart the server" },
+        { "action": "check", "command": "Test-Connection {server} -Count 4", "expect": "reachable", "description": "Confirm server is back online" },
+        { "action": "notify", "description": "Post work note: server rebooted and confirmed online" }
+      ],
+      "automatability": "high",
+      "frequency": 5,
+      "source_tickets": ["resolve by powering off the server then powering on"],
+      "notes": "Derived from close_notes 'Server Rebooted.' and power-cycle resolutions."
+    },
+    {
+      "procedure_id": "wintel.service_restart",
+      "name": "Restart a Windows service",
+      "trigger": {
+        "keywords": ["service stopped", "restart service", "netprobe", "disconnected", "service not running", "agent down"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "description": "Target Windows server" },
+        { "name": "service_name", "type": "service", "source": "short_description", "required": false, "description": "Service to restart (extracted from ticket)" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a remoting session to the server" },
+        { "action": "check", "command": "Get-Service {service_name} | Select-Object Status", "expect": "status != Running", "description": "Confirm the service is not running" },
+        { "action": "restart_service", "service": "{service_name}", "description": "Restart the service" },
+        { "action": "check", "command": "Get-Service {service_name} | Select-Object Status", "expect": "status == Running", "description": "Confirm the service is running" },
+        { "action": "notify", "description": "Post work note: service restarted and confirmed running" }
+      ],
+      "automatability": "high",
+      "frequency": 4,
+      "source_tickets": ["Netprobe has been disconnected for njc1ws7051"],
+      "notes": "Derived from 'NetprobeNT_64 has been restarted and confirmed running'."
+    },
+    {
+      "procedure_id": "wintel.delete_old_profile",
+      "name": "Delete old user profile",
+      "trigger": {
+        "keywords": ["old profile", "delete profile", "profile cleanup", "please delete old profiles"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "description": "Target Windows server" },
+        { "name": "profile_user", "type": "username", "source": "short_description", "required": false, "description": "User whose profile to remove" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a remoting session to the server" },
+        { "action": "check", "command": "Get-CimInstance Win32_UserProfile | Where-Object LocalPath -match '{profile_user}'", "expect": "exists", "description": "Locate the profile" },
+        { "action": "delete_profile", "description": "Remove the identified user profile", "command": "Remove-CimInstance for matched Win32_UserProfile" },
+        { "action": "check", "command": "Get-CimInstance Win32_UserProfile | Where-Object LocalPath -match '{profile_user}'", "expect": "not exists", "description": "Confirm profile removed" },
+        { "action": "notify", "description": "Post work note: old profile deleted" }
+      ],
+      "automatability": "medium",
+      "frequency": 3,
+      "source_tickets": ["Please Delete Old Profiles - Jiren Zhang"],
+      "notes": "Derived from 'old profile has been deleted.'. Medium: needs correct user identification before deletion."
+    },
+    {
+      "procedure_id": "wintel.high_cpu",
+      "name": "Diagnose high CPU utilisation",
+      "trigger": {
+        "keywords": ["high cpu", "cpu utilization", "cpu utilisation", "high cpu utilization"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "description": "Affected Windows server" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a remoting session to the server" },
+        { "action": "check", "command": "Get-Counter '\\Processor(_Total)\\% Processor Time'", "expect": "cpu > 90", "description": "Confirm sustained high CPU" },
+        { "action": "run_command", "command": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name,CPU,Id", "description": "Identify the top CPU-consuming processes" },
+        { "action": "manual", "description": "Review the top process. If it is a known runaway collector/agent (e.g. scheduled_task collector), reconfigure or restart it; if legitimate, confirm and document." },
+        { "action": "check", "command": "Get-Counter '\\Processor(_Total)\\% Processor Time'", "expect": "cpu < 80", "description": "Verify CPU has returned to normal" },
+        { "action": "notify", "description": "Post work note: top process identified, action taken, CPU normalised" }
+      ],
+      "automatability": "medium",
+      "frequency": 52,
+      "source_tickets": ["URGENT - iCapture Primary and DR servers high CPU utilization", "ldn2ws0059 WARN -> CRIT CPU utilization"],
+      "notes": "Promoted from auto-draft. Real resolutions show: identify top CPU process then reconfigure/restart it (e.g. removed 'scheduled_task collector' from otel-config). Kept medium + a manual review step because the fix depends on which process is the culprit."
+    },
+    {
+      "procedure_id": "wintel.vcenter_health_check",
+      "name": "vCenter health check (read-only)",
+      "trigger": {
+        "keywords": ["vcenter", "health check", "icmp testing", "bulk warning", "cluster check"],
+        "assignment_group": "Global Wintel Server Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "required": false, "description": "vCenter or host to check" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "vcenter", "description": "Log in to vCenter" },
+        { "action": "run_command", "command": "Get-VMHost | Get-View | Select Name,OverallStatus", "description": "Check host status across regions" },
+        { "action": "run_command", "command": "Test-Connection {server} -Count 4", "description": "ICMP test target" },
+        { "action": "check", "command": "review warnings", "expect": "no critical alarms", "description": "Confirm no bulk warnings/issues" },
+        { "action": "notify", "description": "Post work note: vCenter checks performed, no issues found" }
+      ],
+      "automatability": "high",
+      "frequency": 4,
+      "source_tickets": ["login to vcenter perform checks on all region no bulk warning or issues in vcenters aslo perform icmp testing"],
+      "notes": "Read-only diagnostic; safe class of automation."
+    }
+  ]
+}

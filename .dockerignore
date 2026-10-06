@@ -1,0 +1,36 @@
+# Never send workstation state or secrets to the Docker daemon.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.venv
+.vscode
+.kiro
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+
+# UI is built from its lockfile inside the image.
+overlay/ui/node_modules
+overlay/ui/dist
+
+# Operational scripts, docs, and tests are not part of the runtime image.
+scripts
+docs
+tests
+README.md
+
+# Local state and generated artifacts.
+*.db
+*.db-*
+*.duckdb
+output
+infra/node_modules
+infra/cdk.out
+
+# Raw discovery exports are not web-runtime dependencies.
+data/*
+!data/incidents.csv
+automation_candidates.csv

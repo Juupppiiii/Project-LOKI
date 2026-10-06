@@ -1,0 +1,39 @@
+# Secrets / environment
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# IDE
+.vscode/
+
+# Generated data & artifacts
+data/
+output/
+*.duckdb
+automation_candidates.csv
+
+# Pulled ticket data (large, contains real ServiceNow content — rebuild with scripts)
+knowledge/tickets/
+
+# Overlay runtime / scratch state (SQLite + WAL sidecars)
+overlay_tasks.db
+overlay_demo.db
+demo_agent_test.db
+smoke_test.db
+*.db-shm
+*.db-wal
+
+# React front end: dependencies and build output are regenerated
+overlay/ui/node_modules/
+overlay/ui/dist/
+
+# AWS CDK dependencies and generated cloud assembly
+infra/node_modules/
+infra/cdk.out/
+infra/cdk.context.json

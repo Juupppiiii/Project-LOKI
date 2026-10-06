@@ -1,0 +1,9 @@
+# Test/dev dependencies. Runtime deps stay in requirements-api.txt.
+# Install with: python -m pip install -r requirements-dev.txt
+-r requirements-api.txt
+
+pytest==8.3.4
+
+# Optional layers. Tests that need these skip cleanly when absent:
+#   - PostgreSQL repository/migration tests need a reachable database
+#     (set LOKI_TEST_POSTGRES_DSN) and the psycopg driver from requirements-api.

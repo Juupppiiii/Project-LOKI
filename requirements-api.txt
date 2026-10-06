@@ -1,0 +1,15 @@
+# Reproducible API/runtime dependencies for the LOKI container.
+# Discovery/analytics dependencies remain in requirements.txt and are not
+# installed in the web image.
+fastapi==0.141.1
+httpx==0.28.1
+itsdangerous==2.2.0
+pydantic==2.13.5
+PyJWT[crypto]==2.15.1
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+python-dotenv==1.2.3
+python-multipart==0.0.32
+PyYAML==6.0.3
+requests==2.34.2
+uvicorn==0.52.4

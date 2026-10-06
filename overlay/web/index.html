@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Task Overlay</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div role="status" class="mode-banner" id="mode-banner">
+    Execution is simulated — no connectors, nothing real is touched.
+    Ticket data may be read live, which does not change that.
+  </div>
+
+  <header class="app-header">
+    <h1>Task Overlay</h1>
+
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button type="button" class="tab" role="tab" id="tab-queue"
+              aria-controls="view-queue" aria-selected="true" data-view="queue">
+        Queue
+      </button>
+      <button type="button" class="tab" role="tab" id="tab-knowledge"
+              aria-controls="view-knowledge" aria-selected="false" data-view="knowledge">
+        Knowledge <span class="tab-count" id="count-drafts"></span>
+      </button>
+      <button type="button" class="tab" role="tab" id="tab-live"
+              aria-controls="view-live" aria-selected="false" data-view="live">
+        Live <span class="tab-count" id="count-live"></span>
+      </button>
+    </nav>
+
+    <div class="header-right">
+      <label class="actor-field">
+        <span>Signed in as</span>
+        <input id="actor" type="text" value="you@tpicap.com"
+               aria-label="Your identity, recorded on every approval" />
+      </label>
+      <button id="refresh" type="button" class="btn btn-quiet">Refresh</button>
+    </div>
+  </header>
+
+  <!-- ================= QUEUE ================= -->
+  <main class="layout" id="view-queue" role="tabpanel" aria-labelledby="tab-queue">
+    <section class="panel queue-panel" aria-labelledby="queue-heading">
+      <div class="panel-head">
+        <h2 id="queue-heading">Queue</h2>
+        <span id="queue-count" class="pill"></span>
+      </div>
+
+      <div class="filter-bar">
+        <div class="seg-group" id="queue-buckets" role="group"
+             aria-label="Filter by what needs doing"></div>
+
+        <div class="filter-controls">
+          <label for="queue-search" class="sr-only">Search tickets</label>
+          <input type="search" id="queue-search"
+                 placeholder="Search ticket, description, group…" />
+
+          <label for="queue-group" class="sr-only">Filter by assignment group</label>
+          <select id="queue-group"></select>
+
+          <label for="queue-sort" class="sr-only">Sort</label>
+          <select id="queue-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="remaining">Most steps left</option>
+            <option value="progress">Closest to done</option>
+          </select>
+        </div>
+
+        <p class="filter-showing" id="queue-showing"></p>
+      </div>
+
+      <div class="intake">
+        <label for="ticket-picker">Add a ticket from extracted data</label>
+        <select id="ticket-picker" aria-describedby="intake-help"></select>
+        <p id="intake-help" class="hint">
+          The matcher decides whether an approved procedure applies. No match
+          means the ticket stays entirely with a human.
+          <span id="intake-summary" class="intake-summary"></span>
+        </p>
+        <button id="propose" type="button" class="btn btn-primary">
+          Match &amp; add to queue
+        </button>
+        <p id="intake-msg" class="msg" role="status"></p>
+      </div>
+
+      <ul id="run-list" class="run-list"></ul>
+    </section>
+
+    <section class="panel detail-panel" aria-labelledby="detail-heading"
+             aria-live="polite">
+      <div class="panel-head">
+        <h2 id="detail-heading">Select a ticket</h2>
+        <span id="run-state" class="pill"></span>
+      </div>
+      <div id="detail" class="detail-body">
+        <p class="empty">
+          Pick a ticket from the queue, or add one, to see the step-by-step plan
+          and what the agent is allowed to do.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= KNOWLEDGE ================= -->
+  <main class="layout layout-wide" id="view-knowledge" role="tabpanel"
+        aria-labelledby="tab-knowledge" hidden>
+    <section class="panel" aria-labelledby="upload-heading">
+      <div class="panel-head">
+        <h2 id="upload-heading">Upload knowledge</h2>
+      </div>
+      <div class="detail-body">
+        <p class="hint">
+          A <strong>handbook</strong> becomes drafts that you review and publish.
+          A <strong>dictionary</strong> takes effect immediately, but it only
+          widens matching — it can never grant the agent permission to run
+          anything.
+        </p>
+
+        <div class="form-row">
+          <label for="upload-kind">Type</label>
+          <select id="upload-kind">
+            <option value="handbook">Handbook (procedures)</option>
+            <option value="dictionary">Dictionary (terms &amp; aliases)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="upload-file">File</label>
+          <input type="file" id="upload-file" />
+          <p class="hint" id="upload-formats"></p>
+        </div>
+
+        <button id="do-upload" type="button" class="btn btn-primary">Upload</button>
+        <p id="upload-msg" class="msg" role="status"></p>
+
+        <div id="upload-result"></div>
+
+        <h3>Uploaded files</h3>
+        <div id="source-list"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="review-heading">
+      <div class="panel-head">
+        <h2 id="review-heading">Review &amp; publish</h2>
+        <span id="draft-count" class="pill"></span>
+      </div>
+      <div class="detail-body">
+        <div id="draft-list"></div>
+
+        <h3>Published procedures</h3>
+        <div id="published-list"></div>
+
+        <h3>Dictionary</h3>
+        <div class="form-row">
+          <label for="dict-test">Test how a phrase matches</label>
+          <input type="text" id="dict-test"
+                 placeholder="Paste a ticket description…" />
+        </div>
+        <div class="form-row form-row-inline">
+          <label for="dict-test-group" class="sr-only">Assignment group</label>
+          <input type="text" id="dict-test-group"
+                 placeholder="Assignment group (optional, affects score)" />
+          <button id="do-dict-test" type="button" class="btn">Test</button>
+        </div>
+        <div id="dict-test-result" role="status"></div>
+        <div id="dictionary-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= LIVE ================= -->
+  <main class="layout layout-wide" id="view-live" role="tabpanel"
+        aria-labelledby="tab-live" hidden>
+    <section class="panel" aria-labelledby="live-config-heading">
+      <div class="panel-head">
+        <h2 id="live-config-heading">Live ticket feed</h2>
+        <span id="live-state" class="pill"></span>
+      </div>
+      <div class="detail-body">
+        <div id="live-status"></div>
+
+        <h3>Settings</h3>
+        <div class="form-row">
+          <label for="live-table">Table</label>
+          <input type="text" id="live-table" />
+        </div>
+        <div class="form-row">
+          <label for="live-query">Encoded query</label>
+          <input type="text" id="live-query" />
+          <p class="hint">
+            ServiceNow encoded query. The default excludes the automated machine
+            feed and other record types stored in the incident table.
+          </p>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="live-interval">Poll interval (s)</label>
+            <input type="number" id="live-interval" min="30" />
+          </div>
+          <div>
+            <label for="live-page">Page size</label>
+            <input type="number" id="live-page" min="1" max="200" />
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="live-groups">Only these assignment groups (optional)</label>
+          <input type="text" id="live-groups"
+                 placeholder="Global Wintel Server Support, Global Linux Support" />
+          <p class="hint">Comma separated. Leave empty to ingest every group.</p>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="live-auto" />
+          <span>
+            Automatically propose a run when a ticket matches
+            <em>(still requires approval before anything executes)</em>
+          </span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="live-enabled" />
+          <span>Enable background polling</span>
+        </label>
+
+        <div class="btn-row">
+          <button id="save-live" type="button" class="btn btn-primary">Save settings</button>
+          <button id="probe-live" type="button" class="btn">Test connection</button>
+          <button id="poll-live" type="button" class="btn btn-run">Poll now</button>
+        </div>
+        <p id="live-msg" class="msg" role="status"></p>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="inbox-heading">
+      <div class="panel-head">
+        <h2 id="inbox-heading">Inbox</h2>
+        <span id="inbox-count" class="pill"></span>
+      </div>
+      <div class="detail-body">
+        <div class="filter-bar filter-bar-flush">
+          <div class="filter-controls">
+            <label for="inbox-search" class="sr-only">Search the inbox</label>
+            <input type="search" id="inbox-search"
+                   placeholder="Search ticket, description, group…" />
+
+            <label for="inbox-filter" class="sr-only">Filter by status</label>
+            <select id="inbox-filter"></select>
+
+            <label for="inbox-group" class="sr-only">Filter by assignment group</label>
+            <select id="inbox-group"></select>
+          </div>
+          <label class="check-row" style="margin:.4rem 0 0">
+            <input type="checkbox" id="inbox-matched" />
+            <span>Only show tickets a procedure can handle</span>
+          </label>
+        </div>
+        <div id="inbox-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span id="footer-summary"></span>
+    <button id="show-policy" type="button" class="btn btn-quiet">Risk policy</button>
+  </footer>
+
+  <dialog id="policy-dialog" aria-labelledby="policy-title">
+    <h2 id="policy-title">How steps are classified</h2>
+    <p class="hint">
+      Served by the API, not hardcoded in this page. Anything unclassified
+      defaults to human-only.
+    </p>
+    <div id="policy-table"></div>
+    <button id="close-policy" type="button" class="btn btn-quiet">Close</button>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

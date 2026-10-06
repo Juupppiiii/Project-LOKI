@@ -1,0 +1,12 @@
+requests
+pandas
+duckdb
+streamlit
+python-dotenv
+plotly
+openpyxl
+
+# Task overlay API (overlay/)
+fastapi
+uvicorn[standard]
+pydantic
