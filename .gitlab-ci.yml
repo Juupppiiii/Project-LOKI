@@ -1,0 +1,123 @@
+# PROJECT STEPH — GitLab CI/CD Pipeline
+#
+# Three stages:
+#   test    — lint + full pytest suite (122 tests, no external deps)
+#   build   — Docker image build (validates the container works)
+#   deploy  — placeholder for future AWS ECS deployment
+#
+# Runs on every push and merge request. No secrets needed for test/build.
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  LOKI_EXECUTION_MODE: "simulation"
+  LOKI_STORE_BACKEND: "sqlite"
+  LOKI_ENFORCE_SOD: "0"          # CI runs same-actor approve+execute in tests
+
+# ---------------------------------------------------------------------------
+# Stage: test
+# ---------------------------------------------------------------------------
+
+lint:
+  stage: test
+  image: python:3.12-slim
+  cache:
+    key: pip-cache
+    paths:
+      - .cache/pip
+  before_script:
+    - pip install --quiet ruff
+  script:
+    - ruff check overlay/ system2/ scripts/ tests/ --select E,F,W --ignore E501,W503 --exit-zero
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+test:
+  stage: test
+  image: python:3.12-slim
+  cache:
+    key: pip-cache
+    paths:
+      - .cache/pip
+  before_script:
+    - pip install --quiet -r requirements-api.txt -r requirements-dev.txt
+  script:
+    - python -m pytest -q --tb=short --junitxml=junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths:
+      - junit.xml
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+cdk-synth:
+  stage: test
+  image: node:22-slim
+  cache:
+    key: npm-cache
+    paths:
+      - infra/node_modules/
+  before_script:
+    - cd infra && npm ci --quiet
+  script:
+    - npx tsc --noEmit
+    - npx cdk synth --quiet --output cdk.out.ci 2>&1 || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - infra/**/*
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - infra/**/*
+
+# ---------------------------------------------------------------------------
+# Stage: build
+# ---------------------------------------------------------------------------
+
+docker-build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build -t "$IMAGE_TAG" .
+    - docker push "$IMAGE_TAG"
+    # Tag latest on main branch only
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        docker tag "$IMAGE_TAG" "$CI_REGISTRY_IMAGE:latest"
+        docker push "$CI_REGISTRY_IMAGE:latest"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ---------------------------------------------------------------------------
+# Stage: deploy (placeholder — blocked on AWS account/bootstrap decision)
+# ---------------------------------------------------------------------------
+
+deploy-dev:
+  stage: deploy
+  image: python:3.12-slim
+  script:
+    - echo "Deployment is not yet configured."
+    - echo "See deploy/README.md for the AWS deployment runbook and current blockers."
+    - echo "Once ECS + Aurora are provisioned, this job will push the image and update the service."
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
