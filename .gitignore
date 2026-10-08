@@ -33,7 +33,13 @@ smoke_test.db
 overlay/ui/node_modules/
 overlay/ui/dist/
 
-# AWS CDK dependencies and generated cloud assembly
-infra/node_modules/
-infra/cdk.out/
-infra/cdk.context.json
+# Terraform working dirs, state, and crash logs (lock file IS committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# Local variable files may contain account IDs / ARNs — commit only *.example
+*.tfvars
+!*.tfvars.example

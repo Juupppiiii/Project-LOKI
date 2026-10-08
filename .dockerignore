@@ -15,6 +15,10 @@
 # UI is built from its lockfile inside the image.
 overlay/ui/node_modules
 overlay/ui/dist
+# The .npmrc pins an internal Nexus mirror only reachable from the corporate
+# workstation network; keep it out of the image so the build uses the public
+# npm registry (reachable from CI).
+overlay/ui/.npmrc
 
 # Operational scripts, docs, and tests are not part of the runtime image.
 scripts

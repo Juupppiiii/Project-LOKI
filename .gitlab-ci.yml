@@ -77,7 +77,7 @@ terraform-validate:
         - infrastructure/**/*
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
-        - infra/**/*
+        - infrastructure/**/*
 
 # ---------------------------------------------------------------------------
 # Stage: build

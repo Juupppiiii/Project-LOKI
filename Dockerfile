@@ -3,7 +3,11 @@
 # Build the existing React UI without changing its source or API contract.
 FROM node:22.12.0-alpine AS ui-build
 WORKDIR /build
-COPY overlay/ui/package.json overlay/ui/package-lock.json overlay/ui/.npmrc ./
+# NOTE: the repo's overlay/ui/.npmrc pins an internal Nexus mirror that only
+# resolves on the corporate workstation network. It is deliberately NOT copied
+# here (and is excluded via .dockerignore) so the image build uses the public
+# npm registry, which the CI runner can reach.
+COPY overlay/ui/package.json overlay/ui/package-lock.json ./
 RUN npm ci
 COPY overlay/ui/index.html overlay/ui/vite.config.js ./
 COPY overlay/ui/src ./src
