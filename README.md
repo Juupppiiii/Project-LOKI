@@ -14,7 +14,7 @@ where noted.
 | Folder / file | Concern | In one line |
 |---|---|---|
 | `deploy/` | **Deployment runbook** | Single entry point for the AWS deploy: steps, blockers, config. Points at the files below. |
-| `infra/` | **AWS / ECS infrastructure (CDK)** | All the cloud: ECS Fargate service, ALB, SQS, Step Functions, RDS, networking. TypeScript CDK. |
+| `infrastructure/` | **AWS / ECS infrastructure (Terraform)** | All the cloud: ECS Fargate (api + worker), ALB, Aurora, SQS, Step Functions. Terraform modules in the `pace/manila` convention. |
 | `Dockerfile`, `.dockerignore` | **Container build** | How the app is packaged into the image ECS runs. |
 | `overlay/` | **The running application** | The FastAPI service + React UI. This is the thing the container runs and ECS hosts. |
 | `system2/` | **Procedure engine** | The rulebook: match a ticket to a procedure, render/simulate its steps. |
@@ -34,25 +34,31 @@ where noted.
 
 ---
 
-## 1. AWS / ECS infrastructure — `infra/`
+## 1. AWS / ECS infrastructure — `infrastructure/` (Terraform)
 
-Everything cloud. The web/API tier runs on **ECS Fargate** (not Lambda) behind
-an internal ALB; connector work is modelled with SQS + Step Functions.
+Everything cloud, as **Terraform** in the TP ICAP `pace/manila` convention:
+a `modules/` library composed by `environments/dev/`. The web/API tier runs on
+**ECS Fargate** behind an internal ALB; the worker consumes SQS; connector work
+is modelled with Step Functions.
 
 ```
-infra/
-  bin/            CDK app entry point
-  lib/
-    network-stack.ts    VPC, subnets, security groups
-    data-stack.ts       Aurora PostgreSQL, RDS Proxy, secrets, KMS
-    platform-stack.ts   ECS cluster + API Fargate service + simulation worker, ALB, ECR, SQS, Step Functions, Prometheus, dashboards
-  test/           CDK template assertions (node --test)
-  cdk.json        CDK config
+infrastructure/
+  environments/dev/     Root module: backend, providers (assume_role), variables, main, outputs
+  modules/
+    ecr/                Image repositories (api, worker)
+    ecs-cluster/        Fargate cluster + shared log group
+    s3/                 ALB access-logs bucket
+    rds/                Aurora PostgreSQL Serverless v2 + RDS Proxy + secret
+    alb/                Internal ALB + HTTPS listener + target group
+    sqs/                Simulation FIFO queue + DLQ
+    stepfunctions/      Run-workflow state machine
+    iam/                Execution role + per-service task roles
+    ecs-service/        API + worker task definitions and services
 ```
 
-The ECS application service is **gated off by default** (`loki:deployService`)
-until the remaining multi-write transaction and claim-recovery work lands. See
-`infra/README.md`.
+The services default to **single-task** and **simulation mode** until the
+multi-write transaction and claim-recovery work lands. See
+`infrastructure/README.md` and `deploy/README.md`.
 
 ## 2. Container build — `Dockerfile` + `.dockerignore`
 
@@ -171,6 +177,6 @@ python src/main.py
 # Tests
 python -m pytest -q
 
-# Infrastructure (synthesize CloudFormation; nothing is deployed)
-cd infra ; npx cdk synth
+# Infrastructure (validate Terraform; nothing is deployed)
+cd infrastructure/environments/dev ; terraform init -backend=false ; terraform validate
 ```

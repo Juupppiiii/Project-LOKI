@@ -1,9 +1,8 @@
 # Deployment — AWS
 
-Everything you need to deploy LOKI to AWS, in one place. The actual files stay
-in their functional locations (Docker needs the Dockerfile at the build-context
-root; CDK needs its code in `infra/`), so this is the **map and the runbook**,
-not a copy.
+Everything you need to deploy LOKI to AWS, in one place. The container files
+stay at the repo root (Docker needs the Dockerfile at the build-context root),
+so this is the **map and the runbook**, not a copy.
 
 > Status: **not deployed.** The code and infrastructure are ready; deployment is
 > blocked on organizational actions (see "Blockers" below), not on code.
@@ -12,11 +11,11 @@ not a copy.
 
 | Piece | Location | Purpose |
 |---|---|---|
-| Container image | `Dockerfile`, `.dockerignore` (repo root) | Builds the API + UI image ECS runs. Two-stage: Node builds the UI, Python serves it. Must stay at root so `COPY requirements-api.txt` and `COPY overlay` resolve. |
+| Container image | `Dockerfile`, `.dockerignore` (repo root) | Builds the API + worker image ECS runs. Two-stage: Node builds the UI, Python serves it. Must stay at root so `COPY requirements-api.txt` and `COPY overlay` resolve. |
 | Python dependencies | `requirements-api.txt` (runtime), `requirements-dev.txt`, `requirements.txt` (repo root) | `requirements-api.txt` is what the image installs. |
-| Infrastructure (CDK) | `infra/` | Three stacks: `Loki-dev-Network`, `Loki-dev-Data`, `Loki-dev-Platform`. TypeScript CDK. |
-| CDK config | `infra/cdk.json`, `infra/bin/loki.ts` | App entry + context flags (`loki:deployService`, etc.). |
-| Stacks | `infra/lib/network-stack.ts`, `data-stack.ts`, `platform-stack.ts` | VPC; Aurora PostgreSQL + RDS Proxy + secrets; ECS Fargate + ALB + ECR + SQS + Step Functions + observability. |
+| Infrastructure (Terraform) | `infrastructure/` | Modules + `environments/dev/`, in the `pace/manila` convention. See `infrastructure/README.md`. |
+| Dev root module | `infrastructure/environments/dev/` | `backend.tf` (GitLab state), `providers.tf` (assume_role), `variables.tf`, `main.tf`, `outputs.tf`. |
+| Modules | `infrastructure/modules/{ecr,ecs-cluster,s3,rds,alb,sqs,stepfunctions,iam,ecs-service}` | ECR; Fargate cluster; ALB logs bucket; Aurora + RDS Proxy; internal ALB; SQS; Step Functions; IAM roles; the API + worker services. |
 
 ## What gets created when deployed
 
@@ -35,34 +34,42 @@ Once deployed, the knowledge base (uploaded handbooks, procedures) lives in the
 shared Aurora store, so **every user hits the same library** — which is the
 "shared for everyone" goal. Today it runs on per-machine SQLite.
 
-## Deployment steps (once blockers are cleared)
+## Deployment steps (once inputs are provided)
 
-```powershell
-# 1. Bootstrap CDK in the target account (needs iam:CreateRole)
-cd infra ; npx cdk bootstrap aws://<ACCOUNT>/eu-west-1
+Terraform needs no CDK bootstrap. The CI pipeline runs build → infra; to deploy
+by hand:
 
-# 2. Build and push the image to ECR (the platform stack creates the repo)
-docker build -t loki:<release-tag> .
-#    then tag + push to the ECR repository URI from the platform stack output
+```bash
+# 1. Build and push both images to ECR (CI's docker-build stage does this)
+docker build -t <ecr>/loki/api:<tag> .
+docker build -t <ecr>/loki/worker:<tag> .
+#    docker push both
 
-# 3. Deploy the foundation (service gated OFF by default)
-npx cdk deploy Loki-dev-Network Loki-dev-Data Loki-dev-Platform
+# 2. Init Terraform against the GitLab-managed state backend
+cd infrastructure/environments/dev
+terraform init -backend-config=...     # see infrastructure/README.md
 
-# 4. Enable the service once PostgreSQL/auth/TLS contexts are supplied
-#    (loki:deployService=true + the required context values in loki.ts)
+# 3. First apply must create ECR before the services can reference an image:
+terraform apply -target=module.ecr -var-file=dev.tfvars   # then push images
+terraform apply -var-file=dev.tfvars \
+  -var="api_image_tag=<tag>" -var="worker_image_tag=<tag>"
 ```
+
+The services default to `desired_count = 1` and `simulation` mode.
 
 ## Blockers (organizational, not code)
 
 Verified against account `813714503704` / eu-west-1:
 
-| Blocker | Who clears it |
-|---|---|
-| Shared `CDKToolkit` bootstrap is `UPDATE_ROLLBACK_FAILED` | Platform team (repair) or use a dedicated account |
-| The `DevOps` SSO role lacks `iam:CreateRole` | Cloud admin — bootstrap and the stacks create IAM roles |
-| Account decision: shared `813714503704` vs a dedicated LOKI account | You + platform team |
-| Internal DNS hostname + TLS cert covering it (wildcard didn't cover a two-label name) | Platform / networking team |
-| Secrets in AWS Secrets Manager (not `.env`) | You — and rotate the ServiceNow password that was exposed |
+| Blocker | Status with Terraform | Who clears it |
+|---|---|---|
+| Broken shared `CDKToolkit` bootstrap | **Resolved** — Terraform needs no CDK bootstrap | n/a |
+| `DevOps` SSO role lacks `iam:CreateRole` | **Resolved** — the provider assumes the platform automation role (same as `pace/manila`) | Needs the automation role ARN + trust |
+| `automation_role_arn` to assume | Required input | Platform team |
+| Account decision: `813714503704` vs dedicated | Open | You + platform team |
+| VPC/subnets, DNS hostname + TLS cert | Required inputs (`vpc_id`, `subnet_ids`, `certificate_arn`) | Platform / networking team |
+| GitLab Terraform state backend variables | `TF_STATE_*` CI/CD variables | You |
+| Secrets in AWS Secrets Manager (not `.env`) | `auth_secret_arn` input | You — and rotate the exposed ServiceNow password |
 
 ## Runtime configuration (set on the ECS task / environment)
 

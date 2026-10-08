@@ -60,22 +60,21 @@ test:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
 
-cdk-synth:
+terraform-validate:
   stage: test
-  image: node:22-slim
-  cache:
-    key: npm-cache
-    paths:
-      - infra/node_modules/
+  image:
+    name: hashicorp/terraform:1.9
+    entrypoint: [""]
   before_script:
-    - cd infra && npm ci --quiet
+    - cd infrastructure/environments/dev
   script:
-    - npx tsc --noEmit
-    - npx cdk synth --quiet --output cdk.out.ci 2>&1 || true
+    - terraform fmt -check -recursive ../..
+    - terraform init -backend=false
+    - terraform validate
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - infra/**/*
+        - infrastructure/**/*
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         - infra/**/*
@@ -113,11 +112,26 @@ docker-build:
 
 deploy-dev:
   stage: deploy
-  image: python:3.12-slim
+  image:
+    name: hashicorp/terraform:1.9
+    entrypoint: [""]
+  before_script:
+    - cd infrastructure/environments/dev
   script:
-    - echo "Deployment is not yet configured."
-    - echo "See deploy/README.md for the AWS deployment runbook and current blockers."
-    - echo "Once ECS + Aurora are provisioned, this job will push the image and update the service."
+    # GitLab-managed state; TF_* backend vars come from CI/CD settings.
+    - terraform init
+      -backend-config="address=${TF_STATE_ADDRESS}"
+      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="username=${TF_STATE_USERNAME}"
+      -backend-config="password=${TF_STATE_PASSWORD}"
+    - terraform apply -auto-approve -var-file=dev.tfvars
+      -var="api_image_tag=${CI_COMMIT_SHORT_SHA}"
+      -var="worker_image_tag=${CI_COMMIT_SHORT_SHA}"
+  # Manual gate: blocked until the platform automation role, VPC/subnets, cert,
+  # and dev.tfvars are provided. See deploy/README.md and infrastructure/README.md.
   when: manual
+  environment:
+    name: dev
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
