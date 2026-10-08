@@ -15,9 +15,9 @@
 # UI is built from its lockfile inside the image.
 overlay/ui/node_modules
 overlay/ui/dist
-# The .npmrc pins an internal Nexus mirror only reachable from the corporate
-# workstation network; keep it out of the image so the build uses the public
-# npm registry (reachable from CI).
+# The .npmrc carries a workstation-specific cafile path and registry pin.
+# The Dockerfile sets the registry explicitly (NPM_REGISTRY build arg), so keep
+# this file out of the build context to avoid a conflicting config.
 overlay/ui/.npmrc
 
 # Operational scripts, docs, and tests are not part of the runtime image.

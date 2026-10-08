@@ -94,7 +94,9 @@ docker-build:
   before_script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
-    - docker build -t "$IMAGE_TAG" .
+    # NPM_REGISTRY defaults to the Nexus mirror baked into package-lock.json.
+    # Override it with a CI/CD variable if the runner reaches a different mirror.
+    - docker build --build-arg NPM_REGISTRY="${NPM_REGISTRY:-https://nexus.tpicapcloud.com/repository/npm-group/}" -t "$IMAGE_TAG" .
     - docker push "$IMAGE_TAG"
     # Tag latest on main branch only
     - |
