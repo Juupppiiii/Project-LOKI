@@ -80,7 +80,7 @@ resource "aws_sfn_state_machine" "run_workflow" {
         Type     = "Task"
         Resource = "arn:aws:states:::sqs:sendMessage.waitForTaskToken"
         Parameters = {
-          QueueUrl = var.simulation_queue_url
+          QueueUrl       = var.simulation_queue_url
           MessageGroupId = "loki-simulation"
           MessageBody = {
             "taskToken.$" = "$$.Task.Token"

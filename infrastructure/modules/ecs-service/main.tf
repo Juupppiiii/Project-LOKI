@@ -103,11 +103,11 @@ resource "aws_ecs_task_definition" "api" {
   }
 
   container_definitions = jsonencode([{
-    name      = "api"
-    image     = "${var.api_image}"
-    essential = true
+    name                   = "api"
+    image                  = "${var.api_image}"
+    essential              = true
     readonlyRootFilesystem = true
-    portMappings = [{ containerPort = var.container_port, protocol = "tcp" }]
+    portMappings           = [{ containerPort = var.container_port, protocol = "tcp" }]
     environment = concat(local.common_environment, [
       { name = "LOKI_ENFORCE_AUTH", value = "1" },
       { name = "OVERLAY_ALLOW_DEV_LOGIN", value = "0" },
@@ -157,11 +157,11 @@ resource "aws_ecs_task_definition" "worker" {
   }
 
   container_definitions = jsonencode([{
-    name      = "worker"
-    image     = "${var.worker_image}"
-    essential = true
+    name                   = "worker"
+    image                  = "${var.worker_image}"
+    essential              = true
     readonlyRootFilesystem = true
-    command   = ["python", "-m", "overlay.worker_main"]
+    command                = ["python", "-m", "overlay.worker_main"]
     environment = concat(local.common_environment, [
       { name = "LOKI_SIMULATION_QUEUE_URL", value = var.simulation_queue_url },
       { name = "AWS_REGION", value = var.aws_region },

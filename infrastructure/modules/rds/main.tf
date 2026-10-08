@@ -3,10 +3,6 @@
 # Secrets Manager). The DB is private; only the application security group may
 # reach the proxy.
 
-data "aws_vpc" "main" {
-  id = var.vpc_id
-}
-
 # --- Credentials in Secrets Manager ---
 
 resource "random_password" "db" {
@@ -88,19 +84,19 @@ resource "aws_db_subnet_group" "main" {
 # --- Aurora PostgreSQL Serverless v2 ---
 
 resource "aws_rds_cluster" "main" {
-  cluster_identifier     = "${var.project_name}-aurora"
-  engine                 = "aurora-postgresql"
-  engine_mode            = "provisioned"
-  engine_version         = var.engine_version
-  database_name          = var.database_name
-  master_username        = var.master_username
-  master_password        = random_password.db.result
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.db.id]
-  storage_encrypted      = true
-  skip_final_snapshot    = false
+  cluster_identifier        = "${var.project_name}-aurora"
+  engine                    = "aurora-postgresql"
+  engine_mode               = "provisioned"
+  engine_version            = var.engine_version
+  database_name             = var.database_name
+  master_username           = var.master_username
+  master_password           = random_password.db.result
+  db_subnet_group_name      = aws_db_subnet_group.main.name
+  vpc_security_group_ids    = [aws_security_group.db.id]
+  storage_encrypted         = true
+  skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project_name}-aurora-final"
-  deletion_protection    = true
+  deletion_protection       = true
 
   serverlessv2_scaling_configuration {
     min_capacity = var.min_acu
