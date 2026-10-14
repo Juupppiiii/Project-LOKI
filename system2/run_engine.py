@@ -19,12 +19,10 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 from pathlib import Path
 
 from schema import load_procedures
-from engine import match_ticket, rank_matches
+from engine import match_ticket
 from executor import render_runbook, dry_run, format_result
 
 HERE = Path(__file__).resolve().parent

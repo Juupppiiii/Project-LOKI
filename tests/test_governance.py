@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from overlay.domain import DomainError, RunState, StepState
+from overlay.domain import DomainError, StepState
 
 pytestmark = pytest.mark.integration
 

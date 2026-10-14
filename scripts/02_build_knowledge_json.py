@@ -16,12 +16,9 @@ Run:
 from __future__ import annotations
 
 import argparse
-import csv
 import json
-import os
 import re
 import sys
-import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -215,7 +212,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Instance : {config.INSTANCE}")
-    print(f"Query    : this year, closed, human-raised, with close_notes")
+    print("Query    : this year, closed, human-raised, with close_notes")
     print(f"Target   : up to {args.limit:,} rows (read-only GET)\n")
 
     raw = pull(args.limit, auth)
@@ -258,7 +255,7 @@ def main() -> int:
     print(f"\nSaved summary -> {summary_path}")
 
     print(f"\n{'='*60}")
-    print(f"KNOWLEDGE BUILD COMPLETE")
+    print("KNOWLEDGE BUILD COMPLETE")
     print(f"{'='*60}")
     print(f"  total tickets      : {len(tickets):,}")
     print(f"  substantive fixes  : {len(substantive):,} ({summary['substantive_rate']:.0%})")

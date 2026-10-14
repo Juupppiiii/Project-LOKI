@@ -35,7 +35,6 @@ from .domain import (
     ProcedureDraft,
     RiskClass,
     RunState,
-    SourceKind,
     StepRun,
     StepState,
     TaskRun,

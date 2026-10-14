@@ -298,9 +298,11 @@ class PostgresStore:
     def list_runs(self, state: str | None = None, assignment_group: str | None = None, limit: int = 100) -> list[TaskRun]:
         clauses, args = [], []
         if state:
-            clauses.append("state=%s"); args.append(state)
+            clauses.append("state=%s")
+            args.append(state)
         if assignment_group:
-            clauses.append("assignment_group=%s"); args.append(assignment_group)
+            clauses.append("assignment_group=%s")
+            args.append(assignment_group)
         query = "SELECT document FROM runs"
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
@@ -496,7 +498,8 @@ class PostgresStore:
     def list_sources(self, kind: str | None = None) -> list[dict[str, Any]]:
         query, args = "SELECT document FROM knowledge_sources", []
         if kind:
-            query += " WHERE kind=%s"; args.append(kind)
+            query += " WHERE kind=%s"
+            args.append(kind)
         query += " ORDER BY uploaded_at DESC"
         with self._pool.connection() as connection:
             rows = connection.execute(query, args).fetchall()
@@ -551,9 +554,11 @@ class PostgresStore:
     def list_drafts(self, status: str | None = None, source_id: str | None = None) -> list[ProcedureDraft]:
         clauses, args = [], []
         if status:
-            clauses.append("status=%s"); args.append(status)
+            clauses.append("status=%s")
+            args.append(status)
         if source_id:
-            clauses.append("source_id=%s"); args.append(source_id)
+            clauses.append("source_id=%s")
+            args.append(source_id)
         query = "SELECT document FROM procedure_drafts"
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
@@ -642,7 +647,8 @@ class PostgresStore:
             ).fetchone()
             if not row:
                 return False
-            document = dict(row["document"]); document["enabled"] = enabled
+            document = dict(row["document"])
+            document["enabled"] = enabled
             connection.execute(
                 "UPDATE dictionary_entries SET enabled=%s,document=%s WHERE entry_id=%s",
                 (enabled, Jsonb(document), entry_id),
@@ -700,8 +706,10 @@ class PostgresStore:
     def list_live_tickets(self, status: str | None = None, limit: int = 100) -> list[LiveTicket]:
         query, args = "SELECT document FROM live_tickets", []
         if status:
-            query += " WHERE status=%s"; args.append(status)
-        query += " ORDER BY fetched_at DESC, ingest_seq DESC LIMIT %s"; args.append(limit)
+            query += " WHERE status=%s"
+            args.append(status)
+        query += " ORDER BY fetched_at DESC, ingest_seq DESC LIMIT %s"
+        args.append(limit)
         with self._pool.connection() as connection:
             rows = connection.execute(query, args).fetchall()
         return [self._live(row["document"]) for row in rows]

@@ -33,7 +33,6 @@ from .domain import (
     ExecutionPolicy,
     KnowledgeSource,
     Owner,
-    RiskClass,
     RunState,
     SourceKind,
     StepState,

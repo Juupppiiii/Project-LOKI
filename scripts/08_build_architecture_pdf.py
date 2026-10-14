@@ -136,7 +136,6 @@ def bullet(pdf, label, text):
 
 def dot(pdf, text):
     pdf.set_x(MARGIN)
-    y = pdf.get_y()
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*ACCENT)
     pdf.cell(5, 5.0, chr(149))
@@ -171,7 +170,7 @@ def layer_box(pdf, name, role, tone=ACCENT):
 def flow_step(pdf, n, title, text, last=False):
     x, y = MARGIN, pdf.get_y()
     r = 4
-    cx, cy = x + r, y + r
+    cx = x + r
     pdf.set_fill_color(*ACCENT)
     pdf.ellipse(x, y, 2 * r, 2 * r, style="F")
     pdf.set_font("Helvetica", "B", 9)
@@ -641,7 +640,7 @@ pdf.multi_cell(CONTENT_W, 4.6,
                "capability is described as simulated or not yet present, that is "
                "stated plainly rather than implied to be complete.")
 
-from pathlib import Path as _Path
+from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
 out = str(_root / "output" / "LOKI_Architecture.pdf")

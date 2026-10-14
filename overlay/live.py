@@ -200,7 +200,6 @@ def describe_query(filters: dict[str, str], group: str = "") -> str:
     """A one-line plain-English summary of the chosen filters, for the UI."""
 
     wt_key = filters.get("work_type", "incident")
-    wt = WORK_TYPES.get(wt_key, WORK_TYPES["incident"])
 
     # Lead with the ticket type as a plural noun.
     noun = {

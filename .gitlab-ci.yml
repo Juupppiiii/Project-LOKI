@@ -32,7 +32,10 @@ lint:
   before_script:
     - pip install --quiet ruff
   script:
-    - ruff check overlay/ system2/ scripts/ tests/ --select E,F,W --ignore E501,W503 --exit-zero
+    # E501 (line length) is intentionally ignored; the code is otherwise clean.
+    # No --exit-zero: a real lint regression now fails this job (still advisory
+    # via allow_failure, so it never blocks the pipeline).
+    - ruff check overlay/ system2/ scripts/ tests/ --select E,F,W --ignore E501
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

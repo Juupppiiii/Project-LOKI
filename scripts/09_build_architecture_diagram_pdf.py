@@ -674,7 +674,8 @@ box(pdf, rx, ry, colw, 12, "HUMAN (R3 / RX)",
 
 # --- bottom band: how to test it TODAY -------------------------------------
 ty = 150
-pdf.set_draw_color(*LINE); pdf.set_line_width(0.3)
+pdf.set_draw_color(*LINE)
+pdf.set_line_width(0.3)
 pdf.line(MARGIN, ty - 3, PAGE_W - MARGIN, ty - 3)
 text_at(pdf, MARGIN, ty, "How to test it today (execution is simulated - safe to run anywhere)", size=9.5, style="B", color=INK)
 steps_test = [
@@ -691,7 +692,7 @@ for i, (h, d) in enumerate(steps_test):
     fill = (232, 246, 237) if i < 3 else (253, 236, 235)
     box(pdf, x, ty + 5, tw, 30, h, d, tone=tone, fill=fill, title_size=8.4, sub_size=6.6)
 
-from pathlib import Path as _Path
+from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
 out = str(_root / "output" / "LOKI_Architecture_Diagram.pdf")

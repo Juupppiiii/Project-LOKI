@@ -12,7 +12,7 @@ automation_candidates.csv. Execution is simulated today; the deck says so.
 """
 
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
@@ -518,7 +518,7 @@ NOTES = [
 for sl, note in zip(prs.slides, NOTES):
     sl.notes_slide.notes_text_frame.text = note
 
-from pathlib import Path as _Path
+from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
 out = str(_root / "output" / "LOKI_Project_Overview.pptx")
