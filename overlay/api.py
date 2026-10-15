@@ -271,6 +271,22 @@ def recommend_candidates(
     return service.recommend_candidates(ticket.to_ticket(), top=top)
 
 
+@app.post("/api/resolution-clusters")
+def resolution_clusters(
+    ticket: TicketIn, top: int = Query(25, ge=1, le=100)
+) -> dict[str, Any]:
+    """Near-duplicate clusters among resolutions of similar solved tickets.
+
+    ADVISORY, read-only. Groups the resolutions of the solved tickets most
+    similar to this one into near-duplicate clusters (largest first), so a human
+    sees recurring resolution patterns and how many distinct incidents each
+    represents. Closure notes are inspectable evidence, not proof. Creates,
+    approves, and executes nothing.
+    """
+
+    return service.resolution_clusters(ticket.to_ticket(), top=top)
+
+
 @app.post("/api/recommend-steps")
 def recommend_steps(ticket: TicketIn) -> dict[str, Any]:
     """Advisory, LLM-assisted step recommendation grounded in solved tickets.

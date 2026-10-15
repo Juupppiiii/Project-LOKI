@@ -241,6 +241,100 @@ def _historical_signal(
     return round(min(1.0, best), 4), citations[:3]
 
 
+def _normalise_resolution(text: str) -> str:
+    """Canonicalise a resolution for near-duplicate comparison.
+
+    Strips host names, ticket numbers, dates/times, and digits so that
+    "restarted netprobe on ldn2ws9696" and "restarted netprobe on njc1ws040"
+    collapse to the same shape. Lowercased, whitespace-squeezed.
+    """
+
+    t = (text or "").lower()
+    t = re.sub(r"\b[a-z]{2,3}\d[a-z0-9]{3,}\b", " ", t)   # host tokens
+    t = re.sub(r"\b(inc|req|chg|ritm)\d+\b", " ", t)       # ticket numbers
+    t = re.sub(r"\d{1,4}[:/-]\d{1,2}[:/-]?\d{0,4}", " ", t)  # dates/times
+    t = re.sub(r"\d+", " ", t)                              # bare digits
+    t = re.sub(r"[^a-z ]+", " ", t)                        # punctuation
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _shingles(text: str, k: int = 3) -> set[str]:
+    """Word k-shingles for Jaccard near-duplicate comparison."""
+
+    words = text.split()
+    if len(words) < k:
+        return {text} if text else set()
+    return {" ".join(words[i : i + k]) for i in range(len(words) - k + 1)}
+
+
+def cluster_resolutions(
+    solved: list[Any], threshold: float = 0.5
+) -> list[dict[str, Any]]:
+    """Group near-duplicate resolutions among retrieved solved tickets.
+
+    Greedy single-pass clustering on Jaccard similarity of 3-shingles over the
+    normalised resolution text. Clusters are returned largest-first; a resolution
+    seen across many distinct incidents is stronger evidence than a one-off.
+    This treats closure notes as evidence a human can inspect -- never as proof
+    a procedure is correct -- and makes recurring resolution patterns visible.
+    """
+
+    reps: list[dict[str, Any]] = []
+    for st in solved:
+        norm = _normalise_resolution(getattr(st, "resolution", ""))
+        if not norm:
+            continue
+        sh = _shingles(norm)
+        placed = False
+        for cluster in reps:
+            inter = len(sh & cluster["_shingles"])
+            union = len(sh | cluster["_shingles"]) or 1
+            if inter / union >= threshold:
+                cluster["count"] += 1
+                cluster["tickets"].append(getattr(st, "number", ""))
+                placed = True
+                break
+        if not placed:
+            reps.append(
+                {
+                    "representative": getattr(st, "resolution", "")[:300],
+                    "count": 1,
+                    "tickets": [getattr(st, "number", "")],
+                    "_shingles": sh,
+                }
+            )
+    for c in reps:
+        c.pop("_shingles", None)
+        c["tickets"] = [t for t in c["tickets"] if t][:10]
+    reps.sort(key=lambda c: c["count"], reverse=True)
+    return reps
+
+
+def _ci_signal(ticket: dict[str, Any], match: Any) -> str | None:
+    """Configuration-item corroboration.
+
+    When the ticket names a configuration item (``cmdb_ci``) and the candidate
+    procedure actually resolved that same host into its parameters, the
+    procedure is demonstrably targeting the thing the ticket is about -- a
+    high-precision corroboration distinct from text/keyword overlap. Returns the
+    matched CI token, or None.
+    """
+
+    if match is None:
+        return None
+    ci = str(ticket.get("cmdb_ci") or "").strip().lower()
+    if not ci:
+        return None
+    for value in (match.parameters or {}).values():
+        v = str(value or "").strip().lower()
+        if not v:
+            continue
+        # Match on the host label (ignore domain suffix on either side).
+        if v == ci or v.split(".")[0] == ci.split(".")[0]:
+            return str(value)
+    return None
+
+
 def _raise_csv_field_limit() -> None:
     """Real ServiceNow exports blow past Python's 131072-char CSV field cap.
 
@@ -488,26 +582,35 @@ class OverlayService:
             )
             base_confidence = _fuse_confidence(kw_conf, sem_conf)
 
-            # New high-precision / corroboration signals.
+            # High-precision / corroboration signals.
             shared_codes = _error_code_signal(ticket_codes, proc)
             hist_strength, hist_cites = _historical_signal(solved, proc)
+            group_match = bool(m is not None and m.group_match)
+            ci_match = _ci_signal(augmented, m)
 
-            # Fold the extra signals in as bounded boosts: an exact error-code
-            # match is strong evidence (+0.25); historical corroboration is
-            # softer (up to +0.15). Both cap the total at 1.0 and neither can
-            # manufacture a candidate -- they only strengthen one a base signal
-            # already surfaced.
+            # Fold the extra signals in as bounded boosts. Exact error-code and
+            # CI matches are strong, precise evidence (+0.25 / +0.20); an
+            # assignment-group match is weaker corroboration (+0.10); historical
+            # resolution is softest (up to +0.15). All cap the total at 1.0 and
+            # none can manufacture a candidate -- they only strengthen one a base
+            # signal already surfaced.
             confidence = base_confidence
             if shared_codes:
                 confidence = min(1.0, confidence + 0.25)
+            if ci_match:
+                confidence = min(1.0, confidence + 0.20)
+            if group_match:
+                confidence = min(1.0, confidence + 0.10)
             confidence = min(1.0, confidence + 0.15 * hist_strength)
             confidence = round(confidence, 4)
 
             signals = []
             if kw_score > 0:
                 signals.append("keyword")
-            if m is not None and m.group_match:
+            if group_match:
                 signals.append("assignment_group")
+            if ci_match:
+                signals.append("configuration_item")
             if sem_threshold and sem_sim >= sem_threshold:
                 signals.append("semantic")
             if shared_codes:
@@ -529,6 +632,7 @@ class OverlayService:
                         "resolved_parameters": dict(m.parameters) if m else {},
                         "missing_parameters": list(m.missing) if m else [],
                         "error_codes": sorted(shared_codes),
+                        "configuration_item": ci_match,
                         "historical_tickets": hist_cites,
                         "signals": signals,
                     },
@@ -688,6 +792,31 @@ class OverlayService:
         except Exception as exc:  # never let advisory retrieval break a request
             self._kb_error = str(exc)
             return []
+
+    def resolution_clusters(
+        self, ticket: dict[str, Any], top: int = 25, threshold: float = 0.5
+    ) -> dict[str, Any]:
+        """Near-duplicate clusters among the resolutions of similar solved tickets.
+
+        ADVISORY, read-only. Retrieves the solved tickets most similar to this
+        one and groups their resolutions into near-duplicate clusters, so a
+        human sees the recurring resolution patterns (and how many distinct
+        incidents each represents) rather than a flat list. Treats closure notes
+        as inspectable evidence, never as proof. Creates/approves/executes
+        nothing.
+        """
+
+        solved = self._retrieve_solved(ticket, top=top)
+        clusters = cluster_resolutions(solved, threshold=threshold)
+        return {
+            "advisory": True,
+            "note": (
+                "Resolution clusters are advisory evidence from solved-ticket "
+                "history; a closed ticket's notes are not proof a fix was correct."
+            ),
+            "retrieved": len(solved),
+            "clusters": clusters,
+        }
 
     @staticmethod
     def _build_rag_prompt(ticket: dict[str, Any], grounding: "Any") -> str:

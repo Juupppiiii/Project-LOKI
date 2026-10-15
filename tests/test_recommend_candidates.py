@@ -183,3 +183,62 @@ def test_error_code_boosts_confidence_and_adds_signal(service):
         assert "historical_tickets" in c["evidence"]
         assert isinstance(c["evidence"]["error_codes"], list)
         assert isinstance(c["evidence"]["historical_tickets"], list)
+
+
+# --- Configuration-item signal and resolution clustering ------------------
+
+
+def test_ci_signal_matches_resolved_host():
+    from overlay import service as svc
+
+    class _M:
+        parameters = {"server": "ldn2ws9696"}
+
+    assert svc._ci_signal({"cmdb_ci": "ldn2ws9696"}, _M()) == "ldn2ws9696"
+    # Host label matches even with a domain suffix on the ticket side.
+    assert svc._ci_signal({"cmdb_ci": "ldn2ws9696.tpicap.net"}, _M()) == "ldn2ws9696"
+    # A different CI is not a match; no CI returns None.
+    assert svc._ci_signal({"cmdb_ci": "other01"}, _M()) is None
+    assert svc._ci_signal({}, _M()) is None
+    assert svc._ci_signal({"cmdb_ci": "x"}, None) is None
+
+
+def test_ci_and_group_appear_as_signals(service, restart_ticket):
+    # restart_ticket has cmdb_ci ldn2ws9696 and the Wintel group; the matched
+    # procedure resolves that host, so both signals should fire on the winner.
+    result = service.recommend_candidates(restart_ticket)
+    top = result["candidates"][0]
+    assert "assignment_group" in top["evidence"]["signals"]
+    assert "configuration_item" in top["evidence"]["signals"]
+    assert top["evidence"]["configuration_item"]
+
+
+def test_cluster_resolutions_groups_near_duplicates():
+    from overlay import service as svc
+    from overlay.knowledge_base import SolvedTicket
+
+    def mk(num, text):
+        return SolvedTicket(num, "svc down", "Wintel", "Solved", text, 0.5)
+
+    solved = [
+        mk("INC1", "Restarted the Netprobe service on ldn2ws9696 and confirmed running"),
+        mk("INC2", "Restarted the Netprobe service on njc1ws040 and confirmed running"),
+        mk("INC3", "Rebuilt the Outlook profile and restored mailbox access"),
+    ]
+    clusters = svc.cluster_resolutions(solved, threshold=0.4)
+    # The two near-identical restarts collapse into one cluster of 2; the
+    # Outlook one stands alone. Largest cluster first.
+    assert clusters[0]["count"] == 2
+    assert len(clusters) == 2
+    assert "INC1" in clusters[0]["tickets"]
+
+
+def test_resolution_clusters_service_shape(service, restart_ticket):
+    result = service.resolution_clusters(restart_ticket, top=10)
+    assert result["advisory"] is True
+    assert "clusters" in result and isinstance(result["clusters"], list)
+    assert "retrieved" in result
+    # Advisory read-only: it must not create a run.
+    before = len(service.list_runs())
+    service.resolution_clusters(restart_ticket)
+    assert len(service.list_runs()) == before
