@@ -10,7 +10,7 @@ LOKI_POSTGRES_AUTO_MIGRATE flag or migration tool.
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -461,6 +461,33 @@ class PostgresStore:
                 updated_at=%s WHERE idempotency_key=%s AND status='claimed'""",
                 (error[:1000], now_iso(), key),
             )
+
+    def reclaim_stale_executions(self, timeout_seconds: int) -> list[dict[str, Any]]:
+        """Fail executions stuck in 'claimed' past the timeout (crash recovery).
+
+        A claim with no terminal outcome older than the timeout belonged to a
+        worker that died mid-dispatch. Transition it to 'failed' -- never
+        silently retry -- so the step surfaces for a human. Returns the
+        reclaimed records. Uses UPDATE ... RETURNING so the find-and-fail is one
+        atomic statement (no window where two reapers both act on a row).
+        """
+
+        from datetime import timedelta
+
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
+        ).isoformat()
+        with self._pool.connection() as connection:
+            rows = connection.execute(
+                """UPDATE action_executions
+                SET status='failed',
+                    error='reclaimed: worker did not finish before timeout',
+                    updated_at=%s
+                WHERE status='claimed' AND updated_at < %s
+                RETURNING idempotency_key, run_id, step_id, updated_at""",
+                (now_iso(), cutoff),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def counts_by_state(self) -> dict[str, int]:
         with self._pool.connection() as connection:

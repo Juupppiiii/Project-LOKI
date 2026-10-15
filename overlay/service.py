@@ -1561,6 +1561,41 @@ class OverlayService:
         )
         return run
 
+    def recover_stale_executions(
+        self, timeout_seconds: int | None = None
+    ) -> dict[str, Any]:
+        """Recover action executions orphaned by a crashed worker.
+
+        The idempotency ledger dispatches an action at most once, but a worker
+        that dies between claiming an execution and recording its outcome leaves
+        the record stuck in 'claimed' -- which would wedge that step forever.
+        This fails such claims (older than the timeout) rather than retrying
+        them, so the step surfaces as a failed attempt a human resolves. Safe to
+        call on startup and periodically. Returns the reclaimed records.
+        """
+
+        ttl = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else int(os.getenv("LOKI_EXECUTION_CLAIM_TIMEOUT_SECONDS", "900"))
+        )
+        reclaimed = self.store.reclaim_stale_executions(ttl)
+        for rec in reclaimed:
+            self.store.append_audit(
+                rec.get("run_id") or "unknown",
+                "execution.reclaimed",
+                "system",
+                {
+                    "idempotency_key": rec.get("idempotency_key"),
+                    "step_id": rec.get("step_id"),
+                    "claimed_since": rec.get("updated_at"),
+                    "timeout_seconds": ttl,
+                    "reason": "worker did not finish before timeout",
+                },
+                step_id=rec.get("step_id"),
+            )
+        return {"reclaimed": len(reclaimed), "timeout_seconds": ttl, "records": reclaimed}
+
     # -- human steps -----------------------------------------------------
 
     def complete_step_manually(

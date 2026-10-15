@@ -42,6 +42,19 @@ from .domain import (
     now_iso,
 )
 
+
+def _iso_cutoff(seconds_ago: int) -> str:
+    """ISO-8601 timestamp `seconds_ago` seconds before now (UTC).
+
+    Used to find action-execution claims older than a timeout. Timestamps are
+    stored as ISO-8601 UTC strings, which compare correctly lexicographically.
+    """
+
+    from datetime import timedelta
+
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id            TEXT PRIMARY KEY,
@@ -850,6 +863,42 @@ class Store:
                 (error[:1000], now_iso(), key),
             )
             self._conn.commit()
+
+    def reclaim_stale_executions(self, timeout_seconds: int) -> list[dict[str, Any]]:
+        """Fail executions stuck in 'claimed' past the timeout (crash recovery).
+
+        A claim with no terminal outcome older than the timeout belonged to a
+        worker that died mid-dispatch. We transition it to 'failed' -- never
+        silently retry -- so the step surfaces as "earlier execution attempt
+        failed" and a human decides. Returns the reclaimed records. This is the
+        safe recovery for the one crash window the idempotency ledger leaves
+        open: between claim and the terminal complete/fail.
+        """
+
+        cutoff = _iso_cutoff(timeout_seconds)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT idempotency_key, run_id, step_id, updated_at
+                FROM action_executions
+                WHERE status = 'claimed' AND updated_at < ?
+                """,
+                (cutoff,),
+            ).fetchall()
+            reclaimed = [dict(r) for r in rows]
+            if reclaimed:
+                self._conn.execute(
+                    """
+                    UPDATE action_executions
+                    SET status = 'failed',
+                        error = 'reclaimed: worker did not finish before timeout',
+                        updated_at = ?
+                    WHERE status = 'claimed' AND updated_at < ?
+                    """,
+                    (now_iso(), cutoff),
+                )
+                self._conn.commit()
+            return reclaimed
 
     # -- queue stats -----------------------------------------------------
 
