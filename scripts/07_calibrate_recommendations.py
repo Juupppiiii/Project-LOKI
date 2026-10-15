@@ -121,9 +121,19 @@ def run() -> dict:
 
     service = OverlayService()
     try:
+        # The procedures actually loaded in this environment. A labeled case
+        # whose expected procedure is NOT loaded is a coverage gap, not a
+        # ranking failure -- scoring it as a miss would blame the matcher for a
+        # procedure that simply is not present. Such cases are reported as
+        # 'not_loaded' and excluded from precision/recall.
+        loaded_ids = {p.procedure_id for p in service._procedures}
+
         rows = []
         signal_counts: dict[str, int] = {}
         for case in LABELED_SET:
+            expected = case["expected"]
+            not_loaded = expected is not None and expected not in loaded_ids
+
             res = service.recommend_candidates(case["ticket"], top=5)
             recommended = res["decision"] == "recommend"
             top = res["candidates"][0] if res["candidates"] else None
@@ -133,8 +143,9 @@ def run() -> dict:
                 for sig in c["evidence"]["signals"]:
                     signal_counts[sig] = signal_counts.get(sig, 0) + 1
 
-            expected = case["expected"]
-            if expected is None:
+            if not_loaded:
+                correct = None  # not scored
+            elif expected is None:
                 correct = not recommended  # should have abstained
             else:
                 correct = recommended and top_id == expected
@@ -146,14 +157,17 @@ def run() -> dict:
                     "recommended": recommended,
                     "top_id": top_id,
                     "top_confidence": top["confidence"] if top else None,
+                    "not_loaded": not_loaded,
                     "correct": correct,
                 }
             )
     finally:
         service.shutdown()
 
-    in_scope = [r for r in rows if r["expected"] is not None]
-    out_scope = [r for r in rows if r["expected"] is None]
+    scored = [r for r in rows if not r["not_loaded"]]
+    not_loaded_rows = [r for r in rows if r["not_loaded"]]
+    in_scope = [r for r in scored if r["expected"] is not None]
+    out_scope = [r for r in scored if r["expected"] is None]
     recommended_in = [r for r in in_scope if r["recommended"]]
 
     precision_at_1 = (
@@ -164,7 +178,9 @@ def run() -> dict:
     recall = (
         sum(r["correct"] for r in in_scope) / len(in_scope) if in_scope else 0.0
     )
-    abstain_rate = sum(not r["recommended"] for r in rows) / len(rows) if rows else 0.0
+    abstain_rate = (
+        sum(not r["recommended"] for r in scored) / len(scored) if scored else 0.0
+    )
     abstain_correctness = (
         sum(r["correct"] for r in out_scope) / len(out_scope) if out_scope else 0.0
     )
@@ -173,6 +189,8 @@ def run() -> dict:
         "cases": rows,
         "metrics": {
             "n_cases": len(rows),
+            "n_scored": len(scored),
+            "n_not_loaded": len(not_loaded_rows),
             "n_in_scope": len(in_scope),
             "n_out_scope": len(out_scope),
             "precision_at_1": round(precision_at_1, 3),
@@ -198,12 +216,19 @@ def main() -> int:
     print("Recommendation calibration")
     print("=" * 52)
     for r in report["cases"]:
-        mark = "OK " if r["correct"] else "XX "
+        mark = "-- " if r["not_loaded"] else ("OK " if r["correct"] else "XX ")
         exp = r["expected"] or "(abstain)"
-        got = r["top_id"] if r["recommended"] else "(abstained)"
+        if r["not_loaded"]:
+            got = "(procedure not loaded)"
+        elif r["recommended"]:
+            got = r["top_id"]
+        else:
+            got = "(abstained)"
         conf = f"{r['top_confidence']:.2f}" if r["top_confidence"] is not None else "-"
         print(f"  {mark} {r['name']:<34} expect={exp:<40} got={got:<40} conf={conf}")
     print("-" * 52)
+    if m["n_not_loaded"]:
+        print(f"  note: {m['n_not_loaded']} case(s) excluded (expected procedure not loaded)")
     print(f"  precision@1          : {m['precision_at_1']:.3f}  (of recommendations)")
     print(f"  recall@1             : {m['recall_at_1']:.3f}  (in-scope found at rank 1)")
     print(f"  abstain rate         : {m['abstain_rate']:.3f}")
