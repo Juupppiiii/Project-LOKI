@@ -254,6 +254,23 @@ def suggest(ticket: TicketIn, top: int = Query(3, ge=1, le=10)) -> dict[str, Any
     return service.semantic_suggestions(ticket.to_ticket(), top=top)
 
 
+@app.post("/api/recommend-candidates")
+def recommend_candidates(
+    ticket: TicketIn, top: int = Query(5, ge=1, le=10)
+) -> dict[str, Any]:
+    """Ranked, evidence-cited procedure candidates with an abstain path.
+
+    ADVISORY ONLY. Fuses the authoritative keyword matcher and the semantic
+    matcher into one ranked list; each candidate cites the keywords, group
+    match, resolved/missing parameters, and signals behind it, with a 0..1
+    confidence. When the top candidate is below the confidence floor the
+    decision is 'insufficient_evidence' and nothing is recommended. It never
+    proposes a run, classifies risk, or authorises anything.
+    """
+
+    return service.recommend_candidates(ticket.to_ticket(), top=top)
+
+
 @app.post("/api/recommend-steps")
 def recommend_steps(ticket: TicketIn) -> dict[str, Any]:
     """Advisory, LLM-assisted step recommendation grounded in solved tickets.

@@ -78,6 +78,72 @@ def _age_seconds(iso_timestamp: str) -> float | None:
     return (datetime.now(timezone.utc) - when).total_seconds()
 
 
+# -- Evidence-based recommendation scoring -----------------------------------
+# The recommend_candidates path FUSES the keyword matcher and the semantic
+# matcher into ranked candidates, each carrying the concrete evidence that
+# justifies it and a 0..1 confidence. It is strictly advisory: it never
+# proposes, approves, classifies risk, or executes. Its only job is to help a
+# human decide, and -- importantly -- to ABSTAIN when the evidence is weak
+# rather than guessing.
+
+# Minimum confidence for the top candidate before we are willing to say
+# "recommend" rather than "insufficient_evidence". Tunable; deliberately
+# conservative so a weak signal abstains instead of asserting a fix.
+def _recommend_floor() -> float:
+    try:
+        return float(os.getenv("LOKI_RECOMMEND_MIN_CONFIDENCE", "0.45"))
+    except ValueError:
+        return 0.45
+
+
+# The keyword score at which keyword confidence saturates to 1.0. The engine
+# scores +2 per matched keyword (+1 for group), MIN_SCORE=3. Three solid
+# keyword hits (score 6) is a strong signal, so we saturate there.
+_KEYWORD_SCORE_SATURATION = 6.0
+
+
+def _keyword_confidence(score: float) -> float:
+    """Map a raw keyword score (0, 2, 3, 4, ...) to 0..1, saturating at 6."""
+
+    if score <= 0:
+        return 0.0
+    return min(1.0, score / _KEYWORD_SCORE_SATURATION)
+
+
+def _semantic_confidence(similarity: float, threshold: float) -> float:
+    """Map cosine similarity to 0..1, anchored so `threshold` -> ~0.5.
+
+    Below threshold the signal is weak (<0.5); a similarity of 2x threshold or
+    more saturates to 1.0. This keeps the semantic contribution comparable to
+    the keyword one without pretending sub-threshold hits are strong.
+    """
+
+    if similarity <= 0 or threshold <= 0:
+        return 0.0
+    # threshold -> 0.5, 2*threshold -> 1.0, linear in between, clamped.
+    return max(0.0, min(1.0, 0.5 * (similarity / threshold)))
+
+
+def _fuse_confidence(kw: float, sem: float) -> float:
+    """Combine keyword and semantic confidence.
+
+    Two independent signals agreeing should be more confident than either
+    alone, but neither alone should be dismissed. We take the stronger signal
+    and add a bounded agreement bonus from the weaker one.
+    """
+
+    strong, weak = (kw, sem) if kw >= sem else (sem, kw)
+    return round(min(1.0, strong + 0.25 * weak), 4)
+
+
+def _confidence_band(confidence: float) -> str:
+    if confidence >= 0.7:
+        return "high"
+    if confidence >= 0.45:
+        return "medium"
+    return "low"
+
+
 def _raise_csv_field_limit() -> None:
     """Real ServiceNow exports blow past Python's 131072-char CSV field cap.
 
@@ -249,6 +315,145 @@ class OverlayService:
             "backend": matcher.backend,
             "threshold": matcher.threshold,
             "suggestions": suggestions,
+        }
+
+    def recommend_candidates(
+        self, ticket: dict[str, Any], top: int = 5
+    ) -> dict[str, Any]:
+        """Ranked, evidence-cited procedure candidates with an abstain path.
+
+        ADVISORY ONLY. This fuses the two existing matchers -- the authoritative
+        keyword engine and the semantic matcher -- into a single ranked list.
+        Each candidate carries the concrete evidence that justifies it (which
+        keywords hit, whether the assignment group matched, which parameters
+        resolved and which are still missing, and which signals fired) plus a
+        0..1 confidence and a band.
+
+        Crucially it ABSTAINS: when the best candidate's confidence is below the
+        floor, the decision is ``insufficient_evidence`` and no procedure is
+        recommended. A missed suggestion is safe; a confident wrong one is not.
+
+        This never proposes a run, classifies risk, or feeds the approval path.
+        The keyword engine remains the authoritative matcher for propose/execute.
+        """
+
+        clean = normalize_ticket(ticket)
+        snapshot = self.registry.snapshot()
+        procedures = list(snapshot.procedures)
+        augmented, applied = self.registry.augment_ticket(clean, snapshot)
+
+        # Authoritative keyword signal (what actually drives proposals).
+        kw_match = _system2.match_ticket(augmented, procedures)
+        kw_ranked = _system2.rank_matches(augmented, procedures)
+        kw_by_id = {m.procedure.procedure_id: m for m in kw_ranked}
+
+        # Semantic signal (advisory meaning-based similarity), if enabled.
+        sem_by_id: dict[str, float] = {}
+        matcher = None
+        semantic_enabled = os.getenv(
+            "LOKI_SEMANTIC_SUGGESTIONS", "1"
+        ).strip().lower() not in ("0", "false", "no", "")
+        if semantic_enabled:
+            matcher = self._semantic_matcher(snapshot)
+            if matcher is not None:
+                for proc, sim in matcher.rank(augmented, top=len(procedures) or 1):
+                    sem_by_id[proc.procedure_id] = float(sim)
+        sem_threshold = matcher.threshold if matcher is not None else None
+
+        # Union of every procedure either signal surfaced.
+        proc_ids = list(kw_by_id.keys()) + [
+            pid for pid in sem_by_id if pid not in kw_by_id
+        ]
+
+        candidates: list[dict[str, Any]] = []
+        for pid in proc_ids:
+            m = kw_by_id.get(pid)
+            proc = m.procedure if m is not None else self._procedure(pid)
+            kw_score = float(m.score) if m is not None else 0.0
+            sem_sim = sem_by_id.get(pid, 0.0)
+
+            kw_conf = _keyword_confidence(kw_score)
+            sem_conf = (
+                _semantic_confidence(sem_sim, sem_threshold)
+                if sem_threshold
+                else 0.0
+            )
+            confidence = _fuse_confidence(kw_conf, sem_conf)
+
+            signals = []
+            if kw_score > 0:
+                signals.append("keyword")
+            if m is not None and m.group_match:
+                signals.append("assignment_group")
+            if sem_threshold and sem_sim >= sem_threshold:
+                signals.append("semantic")
+
+            candidates.append(
+                {
+                    "procedure_id": pid,
+                    "procedure_name": proc.name,
+                    "confidence": confidence,
+                    "confidence_band": _confidence_band(confidence),
+                    "keyword_score": round(kw_score, 2),
+                    "semantic_similarity": round(sem_sim, 4),
+                    "evidence": {
+                        "matched_keywords": list(m.matched_keywords) if m else [],
+                        "assignment_group_match": bool(m.group_match) if m else False,
+                        "resolved_parameters": dict(m.parameters) if m else {},
+                        "missing_parameters": list(m.missing) if m else [],
+                        "signals": signals,
+                    },
+                }
+            )
+
+        # Rank by fused confidence, then keyword score as a stable tiebreak.
+        candidates.sort(
+            key=lambda c: (c["confidence"], c["keyword_score"]), reverse=True
+        )
+        candidates = candidates[:top]
+
+        floor = _recommend_floor()
+        best = candidates[0] if candidates else None
+        recommend = best is not None and best["confidence"] >= floor
+
+        if recommend:
+            reason = (
+                f"Top candidate '{best['procedure_name']}' meets the confidence "
+                f"floor ({best['confidence']:.2f} >= {floor:.2f}) with signals: "
+                f"{', '.join(best['evidence']['signals']) or 'none'}."
+            )
+        elif best is not None:
+            reason = (
+                f"Best candidate '{best['procedure_name']}' is below the "
+                f"confidence floor ({best['confidence']:.2f} < {floor:.2f}); "
+                "abstaining and asking for more information."
+            )
+        else:
+            reason = "No procedure matched this ticket on any signal; abstaining."
+
+        return {
+            "advisory": True,
+            "decision": "recommend" if recommend else "insufficient_evidence",
+            "abstained": not recommend,
+            "reason": reason,
+            "confidence_floor": floor,
+            "authoritative_match": (
+                {
+                    "procedure_id": kw_match.procedure.procedure_id,
+                    "procedure_name": kw_match.procedure.name,
+                    "score": float(kw_match.score),
+                }
+                if kw_match is not None
+                else None
+            ),
+            "semantic_backend": matcher.backend if matcher is not None else None,
+            "dictionary_terms_applied": applied,
+            "candidates": candidates,
+            "note": (
+                "Candidates are advisory and evidence-cited. A human must still "
+                "approve any plan; the keyword engine remains authoritative for "
+                "proposals and execution."
+            ),
         }
 
     def recommend_steps(self, ticket: dict[str, Any]) -> dict[str, Any]:
