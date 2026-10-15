@@ -56,6 +56,34 @@ class SqsTaskQueue:
         self._sqs.delete_message(QueueUrl=self.queue_url, ReceiptHandle=item.receipt)
 
 
+class SqsTaskProducer:
+    """Enqueues dispatch messages onto a FIFO SQS queue (``TaskProducer``).
+
+    ``group_id`` maps to ``MessageGroupId`` (FIFO ordering per run) and
+    ``dedup_id`` to ``MessageDeduplicationId`` (content de-dup), so a resend of
+    the same step is collapsed by SQS before a worker ever sees it.
+    """
+
+    def __init__(self, queue_url: str, *, region_name: str | None = None, client: Any = None) -> None:
+        if not queue_url:
+            raise ValueError("queue_url is required")
+        self.queue_url = queue_url
+        if client is not None:
+            self._sqs = client
+        else:
+            import boto3  # lazy: only needed for the real AWS path
+
+            self._sqs = boto3.client("sqs", region_name=region_name)
+
+    def send(self, body: dict[str, Any], *, group_id: str, dedup_id: str) -> None:
+        self._sqs.send_message(
+            QueueUrl=self.queue_url,
+            MessageBody=json.dumps(body, default=str),
+            MessageGroupId=group_id or "default",
+            MessageDeduplicationId=(dedup_id or group_id or "default")[:128],
+        )
+
+
 class StepFunctionsReporter:
     """Reports task outcomes to Step Functions via the task-token callbacks."""
 

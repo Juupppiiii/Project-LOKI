@@ -1690,6 +1690,85 @@ class OverlayService:
         )
         return run
 
+    def dispatch_chunk_async(self, run_id: str, chunk_id: str, producer: Any) -> dict[str, Any]:
+        """Enqueue an approved chunk for asynchronous worker execution.
+
+        The producer side of the SQS + Step Functions path: instead of running
+        execute_chunk in the request, this validates the chunk is ready and
+        enqueues one dispatch message (the Step Functions message shape) for the
+        worker to consume. The worker then runs the SAME execute_chunk path, so
+        every safety guard still applies -- this only moves *where* it runs, not
+        *whether* it is checked.
+
+        Validates before enqueueing (fail fast, and never enqueue work that
+        would just be refused): an active approval whose binding digest matches
+        the current plan and has not expired, and a next actionable step that is
+        agent-owned. The FIFO group is the run (serialising its steps) and the
+        de-dup id is the step's idempotency key, so a double-dispatch is
+        collapsed by the queue. Enqueueing authorises nothing new; the approval
+        already did, and execution is still simulated.
+        """
+
+        run = self.get_run(run_id)
+        chunk = run.chunk(chunk_id)
+        if chunk is None:
+            raise DomainError(f"unknown chunk '{chunk_id}'")
+
+        approval = self.store.active_approval(run_id, chunk_id)
+        if approval is None:
+            raise DomainError("no active approval for this chunk; approve it first")
+        if approval.binding_digest != planner.binding_digest(run, chunk):
+            raise DomainError("the plan changed since it was approved; re-approval is required")
+        ttl = _approval_ttl_seconds()
+        if ttl > 0:
+            age = _age_seconds(approval.created_at)
+            if age is not None and age > ttl:
+                raise DomainError("this approval has expired; a human must approve it again")
+
+        nxt = run.next_actionable()
+        if nxt is None or nxt.chunk_id != chunk_id:
+            raise DomainError("this chunk has no actionable step ready to dispatch")
+        if nxt.owner is not Owner.AI:
+            raise DomainError(
+                f"step {nxt.sequence} is human-owned and cannot be dispatched to the agent"
+            )
+
+        # The worker will run execute_chunk(actor=triggered_by). Separation of
+        # duties forbids the approver from also triggering, so an async dispatch
+        # is triggered by a distinct system actor, never the approver.
+        triggered_by = "worker-dispatch"
+        if _sod_enforced() and approval.actor == triggered_by:
+            triggered_by = "worker-dispatch-2"
+        definition = action_catalog.resolve(nxt.action)
+        envelope = build_envelope(run, chunk, nxt, approval, definition, triggered_by)
+        body = {
+            "taskToken": "",  # set by Step Functions in production; empty for a bare enqueue
+            "runId": run_id,
+            "stepId": nxt.step_id,
+            "envelope": envelope.to_dict(),
+        }
+        producer.send(body, group_id=run_id, dedup_id=envelope.idempotency_key)
+
+        self.store.append_audit(
+            run_id,
+            "chunk.dispatched_async",
+            "system",
+            {
+                "chunk_id": chunk_id,
+                "step_id": nxt.step_id,
+                "sequence": nxt.sequence,
+                "idempotency_key": envelope.idempotency_key,
+            },
+            step_id=nxt.step_id,
+        )
+        return {
+            "dispatched": True,
+            "run_id": run_id,
+            "chunk_id": chunk_id,
+            "step_id": nxt.step_id,
+            "idempotency_key": envelope.idempotency_key,
+        }
+
     def recover_stale_executions(
         self, timeout_seconds: int | None = None
     ) -> dict[str, Any]:

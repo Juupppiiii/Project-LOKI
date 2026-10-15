@@ -213,3 +213,59 @@ def test_workitem_prefers_envelope_ids_over_message_keys():
     assert item.run_id == "env-run"
     assert item.step_id == "env-step"
     assert item.envelope["chunk_id"] == "env-chunk"
+
+
+# ---------------------------------------------------------------------------
+# Producer side: service.dispatch_chunk_async -> queue -> worker -> report
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_async_enqueues_and_worker_completes_it(worker, service, restart_ticket):
+    run = _approved_run(service, restart_ticket)
+    first_chunk = _agent_chunks(run)[0]
+
+    # Producer: the service enqueues the approved chunk onto the same queue the
+    # worker consumes. No execution happens yet.
+    result = service.dispatch_chunk_async(run.run_id, first_chunk.chunk_id, worker.queue)
+    assert result["dispatched"] is True
+    assert worker.queue.depth == 1
+    # Not executed by the mere enqueue.
+    assert service.get_run(run.run_id).step(first_chunk.step_ids[0]).state is not StepState.SUCCEEDED
+
+    # Consumer: the worker drains it and runs the real execute_chunk path. The
+    # bare enqueue carries no Step Functions token, so there is no callback to
+    # record; what matters is the real execution happened via the queue.
+    handled = worker.drain_once()
+    assert handled == 1
+    refreshed = service.get_run(run.run_id)
+    for sid in first_chunk.step_ids:
+        assert refreshed.step(sid).state is StepState.SUCCEEDED
+
+
+def test_dispatch_async_dedup_collapses_double_send(worker, service, restart_ticket):
+    run = _approved_run(service, restart_ticket)
+    chunk = _agent_chunks(run)[0]
+
+    service.dispatch_chunk_async(run.run_id, chunk.chunk_id, worker.queue)
+    # A second identical dispatch has the same idempotency key -> FIFO content
+    # de-dup drops it before it reaches a worker.
+    service.dispatch_chunk_async(run.run_id, chunk.chunk_id, worker.queue)
+    assert worker.queue.depth == 1
+
+
+def test_dispatch_async_refuses_unapproved_chunk(service, restart_ticket):
+    from overlay.domain import DomainError
+    from overlay.worker_transport import InMemoryQueue
+
+    run = service.propose(restart_ticket, actor="alice")  # not approved
+    chunk = _agent_chunks(run)[0]
+    with pytest.raises(DomainError):
+        service.dispatch_chunk_async(run.run_id, chunk.chunk_id, InMemoryQueue())
+
+
+def test_dispatch_async_is_audited(worker, service, restart_ticket):
+    run = _approved_run(service, restart_ticket)
+    chunk = _agent_chunks(run)[0]
+    service.dispatch_chunk_async(run.run_id, chunk.chunk_id, worker.queue)
+    events = service.audit(run.run_id)
+    assert any(e["event"] == "chunk.dispatched_async" for e in events)

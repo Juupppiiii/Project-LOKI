@@ -93,6 +93,20 @@ class TaskReporter(Protocol):
     def heartbeat(self, task_token: str) -> None: ...
 
 
+class TaskProducer(Protocol):
+    """Enqueues a dispatch message for the worker to consume.
+
+    The producer is the counterpart of ``TaskQueue``: it puts the same message
+    body a Step Functions ``DispatchSimulationAction`` task would send. SQS FIFO
+    in production; the in-memory queue in a test. ``group_id`` is the FIFO
+    message-group (serialises work per run); ``dedup_id`` is the content-based
+    de-dup key (the idempotency key), so a double-send is collapsed by the queue
+    before it ever reaches a worker.
+    """
+
+    def send(self, body: dict[str, Any], *, group_id: str, dedup_id: str) -> None: ...
+
+
 # ---------------------------------------------------------------------------
 # Reference / in-memory implementations (used locally and by tests)
 # ---------------------------------------------------------------------------
@@ -112,9 +126,27 @@ class InMemoryQueue:
         self._pending: list[dict[str, Any]] = []
         self._inflight: dict[int, dict[str, Any]] = {}
         self._next_id = 0
+        self._seen_dedup: set[str] = set()
 
     def put(self, body: dict[str, Any]) -> None:
         with self._lock:
+            self._pending.append(dict(body))
+
+    def send(self, body: dict[str, Any], *, group_id: str, dedup_id: str) -> None:
+        """Producer side (``TaskProducer``) with FIFO content de-duplication.
+
+        A message whose ``dedup_id`` has already been seen is dropped, mirroring
+        an SQS FIFO queue's content-based de-dup. This makes the whole
+        producer->queue->worker path safe against a double-send without relying
+        on the downstream idempotency ledger.
+        """
+
+        del group_id  # ordering is irrelevant to the deterministic in-memory fake
+        with self._lock:
+            if dedup_id and dedup_id in self._seen_dedup:
+                return
+            if dedup_id:
+                self._seen_dedup.add(dedup_id)
             self._pending.append(dict(body))
 
     def receive(self, max_items: int, wait_seconds: int) -> list[WorkItem]:
