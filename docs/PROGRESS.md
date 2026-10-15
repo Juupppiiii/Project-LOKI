@@ -372,11 +372,15 @@ refusing execution without approval, and a real poll of 50 current tickets.
 - [ ] Classify safe `run_command` steps explicitly (e.g. `"risk": "R0"` on a
       read-only `Get-PSDrive`) to grow agent coverage — a `procedures.json`
       edit, no code change.
-- [ ] Background worker, so long-running/scheduled steps (a decommission soak
-      period) are possible. Execution currently happens inside the request.
-- [ ] Rollback execution — the `rollback` field is loaded but never run. The
-      postcondition **verification** seam is in place (see below); rollback is
-      the natural next addition behind it.
+- [x] Background worker. `worker.py` (leader-leased loop) + `worker_main.py`
+      (ECS entrypoint) consume SQS and report to Step Functions; the producer
+      seam (`service.dispatch_chunk_async`) enqueues approved chunks. The API
+      can still run synchronously; async is now available behind the same
+      `execute_chunk` path.
+- [x] Rollback execution — the `rollback` field now threads into `StepRun` and
+      the **compensation seam** (`overlay/rollback.py`) attempts it when a
+      postcondition cannot be confirmed; fail-closed for real effects. Running a
+      real compensator awaits a live connector.
 - [ ] Layer C connectors behind the approval gate — still a separate,
       deliberate project. The one real connector (ServiceNow work-note) stays
       dual-switch-gated and off by default.
@@ -432,9 +436,12 @@ is done; see P1 below).
   artifacts). Baseline where procedures are present: precision@1 1.00,
   recall@1 1.00, abstain correctness 1.00.
 
-Still open on matching: assignment-group/CI as first-class signals, near-
-duplicate resolution clustering, and expanding the labeled set group by group
-against real tickets.
+Added since: **assignment-group and configuration-item are now first-class
+signals** (CI matches the resolved host, ignoring domain suffix); **near-
+duplicate resolution clustering** (`cluster_resolutions` +
+`POST /api/resolution-clusters`) groups solved-ticket resolutions into recurring
+patterns with distinct-incident counts. Still open: expanding the labeled set
+group by group against real tickets.
 
 ## P1 — durable execution — DONE (first increment)
 
@@ -453,13 +460,21 @@ against real tickets.
   the one crash window between claim and terminal outcome while preserving
   at-most-once.
 
-Still open on execution: SQS/Step Functions orchestration for long-running work
-(infra exists in Terraform; the app runs in-process today), and rollback /
-compensation behind the verification seam.
+Added since: **SQS + Step Functions orchestration is now complete end to end** —
+the consumer (worker loop, SQS/SFN transports, ECS entrypoint) plus the new
+**producer seam** (`service.dispatch_chunk_async` + `TaskProducer` /
+`SqsTaskProducer`), so an approved chunk can be enqueued (FIFO, de-duped) and
+run by the worker through the same `execute_chunk` path, exercisable fully
+offline. **Rollback / compensation** is in place too (`overlay/rollback.py`):
+when a postcondition cannot be confirmed, a declared compensation is attempted
+before handoff; real effects with no live compensator fail closed. Still open:
+wiring the live SQS producer into the API's execute route behind a flag, and
+registering real per-connector verifiers/compensators when a live connector is
+enabled.
 
 ## Test + quality status
 
-- Suite: **144 passed, 10 skipped** (10 skips need a live PostgreSQL DSN).
+- Suite: **158 passed, 10 skipped** (10 skips need a live PostgreSQL DSN).
 - `ruff` clean across `overlay/ tests/ scripts/` (the lint CI job's invalid
   `W503` selector was removed; it now actually lints).
 - Everything above is simulation-safe: no real connector is enabled, and the
