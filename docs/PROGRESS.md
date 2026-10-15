@@ -1,6 +1,6 @@
 # Phase 1 Discovery Framework — Progress
 
-_Last updated: 2026-09-24_
+_Last updated: 2026-09-28_
 
 A DevOps Capability Enablement platform that pulls ServiceNow data, discovers
 automation opportunities, and surfaces them via analysis + a dashboard.
@@ -354,22 +354,113 @@ refusing execution without approval, and a real poll of 50 current tickets.
 
 ## Open / next steps (System 3)
 
-- [ ] **Auth.** `X-Actor` is a header the client asserts — it is NOT
-      authentication. Needs SSO-derived identity + server-side roles before this
-      is exposed beyond a trusted network. This now also gates *publishing*:
-      anyone who can reach the API can publish a procedure.
-- [ ] **Separation of duties.** Nothing yet stops one person approving and
-      triggering their own work, or uploading and publishing their own handbook
-      (the audit records both).
+- [x] **Auth.** Entra ID / OIDC with real RS256 JWKS verification (issuer,
+      audience, expiry, nonce) in `auth.py`; `X-Actor` is ignored when
+      `LOKI_ENFORCE_AUTH=1`. Server-side capability RBAC gates every write,
+      including publishing. (Dev-login fallback only when Entra is unconfigured.)
+- [x] **Separation of duties.** `execute_chunk` refuses to let the approver also
+      trigger execution (`LOKI_ENFORCE_SOD`, default on); the audit records
+      `approved_by` vs `triggered_by`. Verified live.
+- [x] **Approval expiry.** Approvals expire after
+      `LOKI_APPROVAL_TTL_SECONDS` (default 1h); an expired approval is refused.
+- [x] **Transactional server DB + leases.** PostgreSQL store
+      (`postgres_store.py`) with migrations, optimistic concurrency, and named
+      leases; backend chosen by `LOKI_STORE_BACKEND`. SQLite remains the local
+      default.
 - [ ] Live polling is a recent-window read, not a backfill. A ticket updated
       while the feed was off is only picked up if still in the recent window.
-- [ ] **Approval expiry.** Approvals currently never time out.
 - [ ] Classify safe `run_command` steps explicitly (e.g. `"risk": "R0"` on a
       read-only `Get-PSDrive`) to grow agent coverage — a `procedures.json`
       edit, no code change.
 - [ ] Background worker, so long-running/scheduled steps (a decommission soak
       period) are possible. Execution currently happens inside the request.
-- [ ] Transactional server DB + leases for multi-team use (SQLite today).
-- [ ] Rollback execution — the `rollback` field is loaded but never run.
+- [ ] Rollback execution — the `rollback` field is loaded but never run. The
+      postcondition **verification** seam is in place (see below); rollback is
+      the natural next addition behind it.
 - [ ] Layer C connectors behind the approval gate — still a separate,
-      deliberate project.
+      deliberate project. The one real connector (ServiceNow work-note) stays
+      dual-switch-gated and off by default.
+
+---
+
+# Roadmap progress — architecture review items
+
+_Updated: 2026-09-28._
+
+Tracking the external architecture review's P0/P1 items against the code as it
+actually is now (verified, tested, committed). This section exists so solved
+work is not re-tracked as open.
+
+## P0 — identity, authorization, production safety — DONE
+
+The review's P0 described an older state of the repo. In the current code:
+
+- Identity is a signed session from **Entra ID / OIDC** with real RS256 JWKS
+  verification (issuer, audience, expiry, nonce). `X-Actor` is ignored under
+  `LOKI_ENFORCE_AUTH=1`.
+- **Capability RBAC** (viewer/operator/approver/admin) is enforced server-side
+  on every write, publishing included.
+- **Separation of duties**, **expiring approvals**, **idempotency keys**, and
+  **version-bound approvals** (binding digest over procedure+catalog+rendered+
+  risk+owner+params) are all enforced in `execute_chunk` and tested.
+- Destructive/unclassified actions stay human-only (`risk.py`, default-deny;
+  `R2` isolated into its own single-step approval).
+
+Only remaining P0-adjacent gap: real-connector **rollback** (verification seam
+is done; see P1 below).
+
+## P1 — matching & recommendations — DONE (first increment)
+
+- `service.recommend_candidates` + `POST /api/recommend-candidates`: **ranked,
+  evidence-cited candidates with an abstain path.** Fuses the authoritative
+  keyword matcher and the advisory semantic matcher into a 0..1 fused
+  confidence per candidate, each citing matched keywords, assignment-group
+  match, resolved/missing parameters, and which signals fired.
+- Two added high-value signals: **error_code** (Event IDs, exit codes, HTTP
+  status, hex, ORA-/E#### — a +0.25 boost on a shared code) and
+  **historical_resolution** (corroboration from similar *solved* tickets via
+  the knowledge base; closure notes are evidence a human inspects, never proof).
+- **Abstains** (`decision = insufficient_evidence`) when the top candidate is
+  below `LOKI_RECOMMEND_MIN_CONFIDENCE` (default 0.45). A missed suggestion is
+  safe; a confident wrong one is not.
+- Strictly advisory: proposes/approves/executes nothing; the keyword engine
+  stays authoritative for propose/execute.
+- **Calibration harness** `scripts/07_calibrate_recommendations.py`: labeled
+  set → precision@1, recall@1, abstain rate, abstain correctness, signal
+  coverage. Cases whose expected procedure is not loaded are reported as
+  `not_loaded` and excluded (so the metric reflects ranking, not coverage
+  artifacts). Baseline where procedures are present: precision@1 1.00,
+  recall@1 1.00, abstain correctness 1.00.
+
+Still open on matching: assignment-group/CI as first-class signals, near-
+duplicate resolution clustering, and expanding the labeled set group by group
+against real tickets.
+
+## P1 — durable execution — DONE (first increment)
+
+- The `action_executions` ledger already gave durable, **at-most-once**
+  dispatch: an idempotency key is claimed atomically before the connector runs,
+  and `execute_chunk` replays a succeeded record instead of dispatching twice.
+- **Postcondition verification** (`overlay/verification.py`): after a connector
+  reports success, the action's postcondition is confirmed before the step is
+  marked succeeded. Simulated results get a pure consistency check; **real
+  results with no registered check FAIL CLOSED** (→ `NEEDS_HUMAN`, never a
+  false success). The step audit now carries the verification record.
+- **Crash recovery** (`service.recover_stale_executions` →
+  `store.reclaim_stale_executions`): a claim orphaned by a dead worker (stuck
+  in `claimed` past `LOKI_EXECUTION_CLAIM_TIMEOUT_SECONDS`, default 900s) is
+  **failed, never silently retried**, so the step surfaces for a human. Closes
+  the one crash window between claim and terminal outcome while preserving
+  at-most-once.
+
+Still open on execution: SQS/Step Functions orchestration for long-running work
+(infra exists in Terraform; the app runs in-process today), and rollback /
+compensation behind the verification seam.
+
+## Test + quality status
+
+- Suite: **144 passed, 10 skipped** (10 skips need a live PostgreSQL DSN).
+- `ruff` clean across `overlay/ tests/ scripts/` (the lint CI job's invalid
+  `W503` selector was removed; it now actually lints).
+- Everything above is simulation-safe: no real connector is enabled, and the
+  one real connector (ServiceNow work-note) remains dual-switch-gated and off.
