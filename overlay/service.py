@@ -22,6 +22,7 @@ from . import (
     planner,
     risk as risk_policy,
     simulator,
+    verification,
 )
 from .action_gateway import ActionGateway
 from .connectors import ConnectorRefused, build_envelope
@@ -1330,6 +1331,33 @@ class OverlayService:
 
             outcome = result.summary
             self.store.complete_action_execution(envelope.idempotency_key, outcome)
+
+            # Postcondition verification: the connector reported success, but a
+            # claim is not a confirmed state change. Confirm the action's effect
+            # before marking the step done. If it cannot be confirmed, the step
+            # stops for a human -- the plan never continues on an unverified
+            # state change.
+            verdict = verification.verify(definition, envelope, result)
+            if verdict.blocks:
+                step.state = StepState.NEEDS_HUMAN
+                step.outcome = f"{outcome} (unverified: {verdict.detail})"
+                self.store.append_audit(
+                    run.run_id,
+                    "step.unverified",
+                    agent,
+                    {
+                        "sequence": step.sequence,
+                        "action": step.action,
+                        "action_reference": definition.reference,
+                        "outcome": outcome,
+                        "verification": verdict.to_dict(),
+                        "idempotency_key": envelope.idempotency_key,
+                        "triggered_by": triggered_by,
+                    },
+                    step_id=step.step_id,
+                )
+                break
+
             step.state = StepState.SUCCEEDED
             step.outcome = outcome
             step.completed_by = agent
@@ -1351,6 +1379,7 @@ class OverlayService:
                     "operation": result.operation,
                     "idempotency_key": envelope.idempotency_key,
                     "evidence": result.evidence,
+                    "verification": verdict.to_dict(),
                     "triggered_by": triggered_by,
                     "approved_by": approval.actor,
                 },
