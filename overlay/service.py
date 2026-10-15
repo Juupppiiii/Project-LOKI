@@ -145,6 +145,102 @@ def _confidence_band(confidence: float) -> str:
     return "low"
 
 
+# Error-code-like tokens are high-precision match evidence: a Windows Event ID,
+# an HTTP status, a hex code (0x8007...), a process exit code, or a vendor code
+# like E1234 / ORA-00942. When the same code appears in both the ticket and a
+# candidate procedure's trigger/name/notes, that is far stronger than a generic
+# keyword overlap, so it earns a dedicated signal.
+_ERROR_CODE_RES = (
+    re.compile(r"\bevent\s*id\s*:?\s*(\d{2,6})\b", re.I),
+    re.compile(r"\b0x[0-9a-f]{4,8}\b", re.I),
+    re.compile(r"\b[A-Z]{2,5}-\d{3,6}\b"),          # ORA-00942, SQL-1234
+    re.compile(r"\bexit(?:\s*code)?\s*:?\s*(\d{1,5})\b", re.I),
+    re.compile(r"\bhttp\s*(\d{3})\b", re.I),
+    re.compile(r"\b[45]\d{2}\b"),                   # bare 4xx/5xx
+    re.compile(r"\bE\d{3,5}\b"),                     # E1234
+)
+
+
+def _extract_error_codes(text: str) -> set[str]:
+    """Pull error-code-like tokens from free text, normalised to lowercase."""
+
+    found: set[str] = set()
+    low = text or ""
+    for rx in _ERROR_CODE_RES:
+        for m in rx.finditer(low):
+            # Prefer a captured group (the numeric code) when present, else the
+            # whole token, so "Event ID 1069" and "1069" match the same code.
+            token = (m.group(1) if m.groups() else m.group(0)).strip().lower()
+            if token:
+                found.add(token)
+    return found
+
+
+def _error_code_signal(ticket_codes: set[str], proc: Any) -> set[str]:
+    """Error codes shared between the ticket and a procedure's own text."""
+
+    if not ticket_codes:
+        return set()
+    proc_text = " ".join(
+        [proc.name or "", getattr(proc, "notes", "") or ""]
+        + list(getattr(proc.trigger, "keywords", []) or [])
+    ).lower()
+    proc_codes = _extract_error_codes(proc_text)
+    # Also treat a procedure keyword that literally contains the code as a hit,
+    # so a keyword like "1069" or "0x80070005" counts even without regex shape.
+    for code in ticket_codes:
+        if code in proc_text:
+            proc_codes.add(code)
+    return ticket_codes & proc_codes
+
+
+def _historical_signal(
+    solved: list[Any], proc: Any
+) -> tuple[float, list[dict[str, Any]]]:
+    """How well a procedure is corroborated by similar solved tickets.
+
+    For each retrieved solved ticket, if its resolution or short description
+    overlaps the procedure's name/keywords, it counts as corroboration weighted
+    by that ticket's retrieval similarity. Returns (0..1 strength, citations).
+    This reuses the knowledge base's real resolution history -- it never treats
+    a closure note as proof, only as corroborating evidence a human can inspect.
+    """
+
+    if not solved:
+        return 0.0, []
+    proc_terms = {
+        t
+        for t in (
+            [w.lower() for w in (proc.name or "").split()]
+            + list(getattr(proc.trigger, "keywords", []) or [])
+        )
+        if len(t) >= 4
+    }
+    if not proc_terms:
+        return 0.0, []
+
+    best = 0.0
+    citations: list[dict[str, Any]] = []
+    for st in solved:
+        hay = f"{st.short_description} {st.resolution}".lower()
+        hits = [t for t in proc_terms if t in hay]
+        if not hits:
+            continue
+        # Overlap fraction x the solved ticket's own retrieval similarity.
+        strength = (len(hits) / len(proc_terms)) * max(0.0, min(1.0, st.similarity))
+        if strength > 0:
+            citations.append(
+                {
+                    "number": st.number,
+                    "similarity": round(float(st.similarity), 4),
+                    "overlap_terms": hits[:8],
+                }
+            )
+            best = max(best, strength)
+    citations.sort(key=lambda c: c["similarity"], reverse=True)
+    return round(min(1.0, best), 4), citations[:3]
+
+
 def _raise_csv_field_limit() -> None:
     """Real ServiceNow exports blow past Python's 131072-char CSV field cap.
 
@@ -361,6 +457,17 @@ class OverlayService:
                     sem_by_id[proc.procedure_id] = float(sim)
         sem_threshold = matcher.threshold if matcher is not None else None
 
+        # Error-code signal: high-precision tokens in the ticket text.
+        ticket_text = " ".join(
+            str(augmented.get(f, ""))
+            for f in ("short_description", "description", "category")
+        )
+        ticket_codes = _extract_error_codes(ticket_text)
+
+        # Historical-resolution signal: similar *solved* tickets from the real
+        # resolution history. Advisory corroboration only.
+        solved = self._retrieve_solved(augmented)
+
         # Union of every procedure either signal surfaced.
         proc_ids = list(kw_by_id.keys()) + [
             pid for pid in sem_by_id if pid not in kw_by_id
@@ -379,7 +486,22 @@ class OverlayService:
                 if sem_threshold
                 else 0.0
             )
-            confidence = _fuse_confidence(kw_conf, sem_conf)
+            base_confidence = _fuse_confidence(kw_conf, sem_conf)
+
+            # New high-precision / corroboration signals.
+            shared_codes = _error_code_signal(ticket_codes, proc)
+            hist_strength, hist_cites = _historical_signal(solved, proc)
+
+            # Fold the extra signals in as bounded boosts: an exact error-code
+            # match is strong evidence (+0.25); historical corroboration is
+            # softer (up to +0.15). Both cap the total at 1.0 and neither can
+            # manufacture a candidate -- they only strengthen one a base signal
+            # already surfaced.
+            confidence = base_confidence
+            if shared_codes:
+                confidence = min(1.0, confidence + 0.25)
+            confidence = min(1.0, confidence + 0.15 * hist_strength)
+            confidence = round(confidence, 4)
 
             signals = []
             if kw_score > 0:
@@ -388,6 +510,10 @@ class OverlayService:
                 signals.append("assignment_group")
             if sem_threshold and sem_sim >= sem_threshold:
                 signals.append("semantic")
+            if shared_codes:
+                signals.append("error_code")
+            if hist_strength > 0:
+                signals.append("historical_resolution")
 
             candidates.append(
                 {
@@ -402,6 +528,8 @@ class OverlayService:
                         "assignment_group_match": bool(m.group_match) if m else False,
                         "resolved_parameters": dict(m.parameters) if m else {},
                         "missing_parameters": list(m.missing) if m else [],
+                        "error_codes": sorted(shared_codes),
+                        "historical_tickets": hist_cites,
                         "signals": signals,
                     },
                 }
@@ -542,6 +670,24 @@ class OverlayService:
             "grounding": grounding.to_dict(),
             "recommendation": text,
         }
+
+    def _retrieve_solved(self, ticket: dict[str, Any], top: int = 5) -> list[Any]:
+        """Similar solved tickets for the historical-resolution signal.
+
+        Defensive: advisory retrieval must never break the recommendation path,
+        so any failure (missing dataset, load error) yields an empty list.
+        """
+
+        try:
+            from . import knowledge_base as kb
+
+            index = kb.shared_solved_index()
+            if not getattr(index, "loaded", False) or index.size == 0:
+                return []
+            return index.retrieve(ticket, top=top)
+        except Exception as exc:  # never let advisory retrieval break a request
+            self._kb_error = str(exc)
+            return []
 
     @staticmethod
     def _build_rag_prompt(ticket: dict[str, Any], grounding: "Any") -> str:

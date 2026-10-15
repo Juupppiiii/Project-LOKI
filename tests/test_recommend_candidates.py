@@ -103,3 +103,83 @@ def test_recommending_creates_nothing_even_when_abstaining(service):
     before = len(service.list_runs())
     service.recommend_candidates({"number": "INC9201", "short_description": "noise"})
     assert len(service.list_runs()) == before
+
+
+# --- Richer signals: error codes and historical resolutions ---------------
+
+
+def test_error_code_extraction_finds_common_shapes():
+    from overlay import service as svc
+
+    codes = svc._extract_error_codes(
+        "Service failed with Event ID 1069 and exit code 7, HTTP 503, 0x80070005, ORA-00942"
+    )
+    assert "1069" in codes
+    assert "7" in codes
+    assert "503" in codes
+    assert "0x80070005" in codes
+    assert "ora-00942" in codes
+
+
+def test_error_code_signal_matches_shared_code():
+    from overlay import service as svc
+
+    class _Trig:
+        keywords = ["service", "event id 1069", "crash"]
+
+    class _Proc:
+        name = "Fix service crash"
+        notes = ""
+        trigger = _Trig()
+
+    shared = svc._error_code_signal({"1069"}, _Proc())
+    assert "1069" in shared
+    # A ticket code the procedure never mentions is not a shared signal.
+    assert svc._error_code_signal({"9999"}, _Proc()) == set()
+
+
+def test_historical_signal_corroborates_from_solved_tickets():
+    from overlay import service as svc
+    from overlay.knowledge_base import SolvedTicket
+
+    class _Trig:
+        keywords = ["netprobe", "restart"]
+
+    class _Proc:
+        name = "Restart Netprobe service"
+        trigger = _Trig()
+
+    solved = [
+        SolvedTicket(
+            number="INC1",
+            short_description="netprobe down on host",
+            assignment_group="Wintel",
+            close_code="Solved",
+            resolution="restarted the netprobe service and confirmed running",
+            similarity=0.8,
+        )
+    ]
+    strength, cites = svc._historical_signal(solved, _Proc())
+    assert strength > 0
+    assert cites and cites[0]["number"] == "INC1"
+    # No solved tickets -> no corroboration.
+    assert svc._historical_signal([], _Proc()) == (0.0, [])
+
+
+def test_error_code_boosts_confidence_and_adds_signal(service):
+    # A ticket carrying an error code that a procedure references should surface
+    # the error_code signal in the evidence when that procedure is a candidate.
+    ticket = {
+        "number": "INC9300",
+        "short_description": "Netprobe service stopped, Event ID 7024 on ldn2ws9696",
+        "description": "service not running",
+        "assignment_group": "Global Wintel Server Support",
+        "cmdb_ci": "ldn2ws9696",
+    }
+    result = service.recommend_candidates(ticket)
+    # The evidence structure must now expose the new fields on every candidate.
+    for c in result["candidates"]:
+        assert "error_codes" in c["evidence"]
+        assert "historical_tickets" in c["evidence"]
+        assert isinstance(c["evidence"]["error_codes"], list)
+        assert isinstance(c["evidence"]["historical_tickets"], list)
