@@ -21,6 +21,7 @@ from . import (
     knowledge,
     planner,
     risk as risk_policy,
+    rollback,
     simulator,
     verification,
 )
@@ -1614,8 +1615,21 @@ class OverlayService:
             # state change.
             verdict = verification.verify(definition, envelope, result)
             if verdict.blocks:
+                # The action ran but its effect could not be confirmed. Attempt
+                # the step's declared compensation (if any) to undo it before
+                # handing to a human -- never continue on an unverified change.
+                compensation = rollback.compensate(step, envelope, result)
                 step.state = StepState.NEEDS_HUMAN
-                step.outcome = f"{outcome} (unverified: {verdict.detail})"
+                if compensation.needs_attention:
+                    step.outcome = (
+                        f"{outcome} (unverified: {verdict.detail}; "
+                        f"ROLLBACK FAILED: {compensation.detail})"
+                    )
+                else:
+                    step.outcome = (
+                        f"{outcome} (unverified: {verdict.detail}; "
+                        f"rollback: {compensation.status.value})"
+                    )
                 self.store.append_audit(
                     run.run_id,
                     "step.unverified",
@@ -1626,6 +1640,7 @@ class OverlayService:
                         "action_reference": definition.reference,
                         "outcome": outcome,
                         "verification": verdict.to_dict(),
+                        "rollback": compensation.to_dict(),
                         "idempotency_key": envelope.idempotency_key,
                         "triggered_by": triggered_by,
                     },

@@ -135,6 +135,10 @@ class StepRun:
     # Why the classifier landed here. Shown in the UI so a reviewer can
     # disagree with the policy rather than trusting a bare label.
     risk_reason: str = ""
+    # Optional compensating action text (from the procedure's `rollback`), used
+    # by the rollback seam if this step's effect must be undone. Empty when the
+    # step declares no rollback.
+    rollback: str = ""
 
     @property
     def ai_executable(self) -> bool:

@@ -131,6 +131,7 @@ def build_plan(
                 owner=owner,
                 policy=policy,
                 risk_reason=reason,
+                rollback=_system2.fill(getattr(step, "rollback", None), params) or "",
             )
         )
 
