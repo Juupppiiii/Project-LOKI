@@ -79,6 +79,7 @@ CAPABILITIES = {
     "delete_source": "approver",
     "manage_credentials": "admin",  # the keys to what the agent can reach
     "manage_live_feed": "operator",
+    "run_diagnostic": "operator",   # read-only evidence gathering
 }
 
 

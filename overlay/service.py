@@ -819,6 +819,80 @@ class OverlayService:
             "clusters": clusters,
         }
 
+    # -- read-only diagnostics (separate boundary; never writes) ---------
+
+    def diagnostic_catalogue(self) -> dict[str, Any]:
+        """The fixed catalogue of read-only diagnostic operations."""
+
+        from . import diagnostics
+
+        gw = diagnostics.DiagnosticGateway()
+        return {
+            "read_only": True,
+            "live": gw.live,
+            "note": (
+                "Read-only diagnostics gather evidence; they never change a "
+                "target, and run against a mock unless explicitly enabled."
+            ),
+            "operations": diagnostics.describe_catalogue(),
+        }
+
+    def run_diagnostic(
+        self,
+        operation_id: str,
+        params: dict[str, Any],
+        actor: str,
+        *,
+        ticket_ref: str = "",
+    ) -> dict[str, Any]:
+        """Run one allowlisted, validated, read-only diagnostic and audit it.
+
+        Authorisation is enforced at the API layer (capability check); this
+        records who ran what against which target and the outcome, per the
+        audit guardrail. It performs no write of any kind -- the gateway's only
+        backend method is a read.
+        """
+
+        from . import diagnostics
+
+        gw = diagnostics.DiagnosticGateway()
+        audit_base = {
+            "operation_id": operation_id,
+            "target": params.get("target") or params.get("name") or "",
+            "ticket_ref": ticket_ref,
+            "requested_by": actor,
+        }
+        try:
+            result = gw.run(operation_id, params)
+        except diagnostics.DiagnosticRefused as exc:
+            self.store.append_audit(
+                ticket_ref or "diagnostics",
+                "diagnostic.refused",
+                actor,
+                {**audit_base, "reason": str(exc)},
+            )
+            raise DomainError(str(exc)) from exc
+        except diagnostics.DiagnosticFailed as exc:
+            self.store.append_audit(
+                ticket_ref or "diagnostics",
+                "diagnostic.failed",
+                actor,
+                {**audit_base, "error": str(exc)},
+            )
+            raise DomainError(str(exc)) from exc
+
+        self.store.append_audit(
+            ticket_ref or "diagnostics",
+            "diagnostic.ran",
+            actor,
+            {
+                **audit_base,
+                "simulated": result.simulated,
+                "backend": result.backend,
+            },
+        )
+        return result.to_dict()
+
     @staticmethod
     def _build_rag_prompt(ticket: dict[str, Any], grounding: "Any") -> str:
         """Assemble the retrieval-grounded prompt. Pure string building."""

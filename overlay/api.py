@@ -287,6 +287,39 @@ def resolution_clusters(
     return service.resolution_clusters(ticket.to_ticket(), top=top)
 
 
+@app.get("/api/diagnostics/catalog")
+def diagnostics_catalog() -> dict[str, Any]:
+    """The fixed catalogue of read-only diagnostic operations (no auth needed)."""
+
+    return service.diagnostic_catalogue()
+
+
+class DiagnosticIn(BaseModel):
+    operation_id: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    ticket_ref: str = ""
+
+
+@app.post("/api/diagnostics/run")
+def diagnostics_run(
+    body: DiagnosticIn,
+    actor: str = Depends(require_capability("run_diagnostic")),
+) -> dict[str, Any]:
+    """Run one allowlisted, validated, READ-ONLY diagnostic and return evidence.
+
+    Default-deny: an unknown operation id, an invalid parameter, or a target not
+    on the allowlist (when live) is refused with 409. Performs no write of any
+    kind; the result is evidence a human interprets. Every run is audited.
+    """
+
+    try:
+        return service.run_diagnostic(
+            body.operation_id, body.parameters, actor=actor, ticket_ref=body.ticket_ref
+        )
+    except DomainError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @app.post("/api/recommend-steps")
 def recommend_steps(ticket: TicketIn) -> dict[str, Any]:
     """Advisory, LLM-assisted step recommendation grounded in solved tickets.
