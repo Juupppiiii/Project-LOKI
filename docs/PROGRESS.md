@@ -479,3 +479,43 @@ enabled.
   `W503` selector was removed; it now actually lints).
 - Everything above is simulation-safe: no real connector is enabled, and the
   one real connector (ServiceNow work-note) remains dual-switch-gated and off.
+
+---
+
+# Read-only diagnostic gateway (Project STEPH workstream D)
+
+_Added: 2026-09-28._
+
+A **separate, default-deny, read-only** evidence-gathering boundary —
+independent of the simulation action gateway and the ServiceNow write
+connector. This is the planning document's workstream D, built to its
+non-negotiable guardrails.
+
+- **`overlay/diagnostics.py`** — a fixed catalogue of reviewed read-only
+  operations: `service_status`, `disk_free`, `dns_lookup`, `tcp_check`,
+  `event_log_query`. The backend protocol has a single `read()` method; there
+  is **no write path**.
+- **Default-deny + no arbitrary commands** — an operation id outside the
+  catalogue is refused; callers pass an operation id + validated parameters,
+  never shell/PowerShell text. Hostname/IP validation rejects shell
+  metacharacters; ports bound 1–65535; event entries capped at 50; output
+  truncated.
+- **Allowlists** (enforced on the real path): `LOKI_DIAGNOSTICS_TARGETS` and
+  `LOKI_DIAGNOSTICS_PORTS`.
+- **Dual-switch for the real backend**: `LOKI_EXECUTION_MODE=live` **and**
+  `LOKI_DIAGNOSTICS_ENABLED=1`. Otherwise a deterministic mock answers (marked
+  `simulated`), so the gateway runs fully offline and in tests. The real
+  read-only backend (remote agent `Get-Service`/`Get-PSDrive`/`Resolve-DnsName`
+  /`Test-NetConnection`, or SSM for managed nodes) is intentionally not wired
+  yet and **fails closed**.
+- **API**: `GET /api/diagnostics/catalog` (open) and `POST /api/diagnostics/run`
+  (new `run_diagnostic` capability, operator+). Every run — and every refusal —
+  is audited with requester, operation, target, and ticket ref.
+
+Still read-only MVP: no remediation, no writes, no ticket updates. Verified
+live (mock): catalog + `service_status` succeed; an unknown operation and an
+injection attempt in the target are both refused with 409. Suite **172 passed**.
+
+This also lays the safe foundation for the remote-target idea discussed: a
+read-only `service_status` against an allowlisted host is the first, risk-free
+step toward a future (separate, explicitly-approved) remediation phase.
