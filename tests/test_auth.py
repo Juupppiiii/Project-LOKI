@@ -206,19 +206,19 @@ def test_issuer_and_jwks_uri_carry_tenant(cfg):
 
 
 def test_role_resolves_from_group_mapping(monkeypatch):
-    monkeypatch.setenv("LOKI_ENTRA_ROLE_MAP", "grp-approvers=approver,grp-admins=admin")
+    monkeypatch.setenv("BUCKY_ENTRA_ROLE_MAP", "grp-approvers=approver,grp-admins=admin")
     role = auth._resolve_role({"groups": ["grp-approvers"]})
     assert role == "approver"
 
 
 def test_role_resolves_from_app_role_claim(monkeypatch):
-    monkeypatch.setenv("LOKI_ENTRA_ROLE_MAP", "Loki.Admin=admin")
-    role = auth._resolve_role({"roles": ["Loki.Admin"]})
+    monkeypatch.setenv("BUCKY_ENTRA_ROLE_MAP", "Bucky.Admin=admin")
+    role = auth._resolve_role({"roles": ["Bucky.Admin"]})
     assert role == "admin"
 
 
 def test_unmapped_user_gets_default_role(monkeypatch):
-    monkeypatch.setenv("LOKI_ENTRA_ROLE_MAP", "grp-approvers=approver")
+    monkeypatch.setenv("BUCKY_ENTRA_ROLE_MAP", "grp-approvers=approver")
     monkeypatch.setattr(auth, "DEFAULT_ROLE", "operator")
     role = auth._resolve_role({"groups": ["grp-unknown"]})
     assert role == "operator"

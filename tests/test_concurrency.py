@@ -88,12 +88,12 @@ def test_high_contention_claims_on_postgres():
     """Many concurrent processes, one winner, no duplicate side effect.
 
     PostgreSQL is the concurrent backend; this proves the claim under real
-    write concurrency. Skipped unless LOKI_TEST_POSTGRES_DSN is set.
+    write concurrency. Skipped unless BUCKY_TEST_POSTGRES_DSN is set.
     """
 
-    dsn = __import__("os").getenv("LOKI_TEST_POSTGRES_DSN")
+    dsn = __import__("os").getenv("BUCKY_TEST_POSTGRES_DSN")
     if not dsn:
-        pytest.skip("set LOKI_TEST_POSTGRES_DSN to run the high-contention race")
+        pytest.skip("set BUCKY_TEST_POSTGRES_DSN to run the high-contention race")
 
     from overlay.postgres_store import PostgresStore
 

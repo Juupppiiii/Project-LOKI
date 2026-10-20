@@ -7,7 +7,7 @@ semantic matcher into one ranked list. The guarantees under test:
 * Every candidate cites concrete evidence (keywords, group, params, signals).
 * It ABSTAINS (decision == 'insufficient_evidence') when the top candidate is
   below the confidence floor, rather than asserting a weak match.
-* The confidence floor is tunable via LOKI_RECOMMEND_MIN_CONFIDENCE.
+* The confidence floor is tunable via BUCKY_RECOMMEND_MIN_CONFIDENCE.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def test_authoritative_match_mirrors_keyword_engine(service, restart_ticket):
 
 def test_floor_can_be_tuned_to_force_abstain(service, restart_ticket, monkeypatch):
     # A floor above 1.0 can never be met, so even a strong match abstains.
-    monkeypatch.setenv("LOKI_RECOMMEND_MIN_CONFIDENCE", "1.01")
+    monkeypatch.setenv("BUCKY_RECOMMEND_MIN_CONFIDENCE", "1.01")
     result = service.recommend_candidates(restart_ticket)
     assert result["decision"] == "insufficient_evidence"
     assert result["abstained"] is True

@@ -59,10 +59,10 @@ class ActionGateway:
     }
 
     def __init__(self, mode: str | None = None) -> None:
-        self.mode = (mode or os.getenv("LOKI_EXECUTION_MODE", "simulation")).strip().lower()
+        self.mode = (mode or os.getenv("BUCKY_EXECUTION_MODE", "simulation")).strip().lower()
         if self.mode not in self._MODES:
             raise RuntimeError(
-                f"LOKI_EXECUTION_MODE={self.mode!r} is not available; valid modes "
+                f"BUCKY_EXECUTION_MODE={self.mode!r} is not available; valid modes "
                 "are 'simulation' (default) and 'live'"
             )
         self._connectors: dict[str, Connector] = {"simulation": SimulationConnector()}

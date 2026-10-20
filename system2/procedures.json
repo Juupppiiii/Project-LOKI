@@ -138,6 +138,229 @@
       "frequency": 4,
       "source_tickets": ["login to vcenter perform checks on all region no bulk warning or issues in vcenters aslo perform icmp testing"],
       "notes": "Read-only diagnostic; safe class of automation."
+    },
+
+    {
+      "procedure_id": "linux.disk_capacity",
+      "name": "Linux disk capacity investigation (read-only)",
+      "trigger": {
+        "keywords": ["disk capacity", "disk space", "filesystem full", "/var", "no space left", "% on prod host", "% on uat host"],
+        "assignment_group": "Global Linux Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "required": false, "description": "Affected Linux host" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a read-only session to the Linux host" },
+        { "action": "run_command", "command": "df -hP", "description": "List filesystem usage to find the full mount" },
+        { "action": "run_command", "command": "du -xh --max-depth=1 /var 2>/dev/null | sort -rh | head -20", "description": "Identify the largest directories under the full mount" },
+        { "action": "check", "command": "df -hP", "expect": "usage < 90", "description": "Confirm whether any mount is above the alert threshold" },
+        { "action": "manual", "description": "Decide what is safe to archive or remove (e.g. rotate/compress logs, clear old artefacts). Deletion is human-owned; BUCKY does not remove files." },
+        { "action": "notify", "description": "Post work note: largest consumers identified; recommended cleanup for human action" }
+      ],
+      "automatability": "medium",
+      "frequency": 20,
+      "source_tickets": ["Disk Capacity issues: 90% on PROD host: ldn3lx0085", "High Swap Used 86%: on UAT host ldn1lx2851"],
+      "notes": "Read-only diagnosis. Grounded in recurring Global Linux Support capacity alerts. Any file removal stays a manual, human-owned step."
+    },
+
+    {
+      "procedure_id": "linux.high_resource",
+      "name": "Linux high CPU / memory / process investigation (read-only)",
+      "trigger": {
+        "keywords": ["excessive number of processes", "high swap", "memory is high", "high memory", "load average", "cpu high", "swap used"],
+        "assignment_group": "Global Linux Support"
+      },
+      "parameters": [
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "required": false, "description": "Affected Linux host" }
+      ],
+      "steps": [
+        { "action": "connect", "target": "{server}", "description": "Open a read-only session to the Linux host" },
+        { "action": "run_command", "command": "uptime; free -h", "description": "Check load average and memory/swap pressure" },
+        { "action": "run_command", "command": "ps -eo pid,ppid,comm,%cpu,%mem --sort=-%cpu | head -15", "description": "Identify the top CPU and memory consumers" },
+        { "action": "check", "command": "free -h", "expect": "swap_used < 80", "description": "Confirm whether swap/memory pressure is sustained" },
+        { "action": "manual", "description": "Review the top process. If it is a known runaway, hand to the owning team to restart/reconfigure; BUCKY does not kill processes." },
+        { "action": "notify", "description": "Post work note: resource pressure confirmed, top consumers identified" }
+      ],
+      "automatability": "medium",
+      "frequency": 12,
+      "source_tickets": ["Excessive number of processes 2153 running on PROD host njc1lx1349", "TPVOL pretrade memory is HIGH on grafana"],
+      "notes": "Read-only diagnosis for Linux resource alerts. Process termination and reconfiguration remain human-owned."
+    },
+
+    {
+      "procedure_id": "network.circuit_down",
+      "name": "Network circuit / line down triage (read-only)",
+      "trigger": {
+        "keywords": ["circuit id", "line down", "circuit down", "- down |", "nexgen circuit", "colt circuit", "link down"],
+        "assignment_group": "Network Operations"
+      },
+      "parameters": [
+        { "name": "circuit_id", "type": "string", "source": "short_description", "required": false, "description": "Carrier circuit identifier from the ticket" }
+      ],
+      "steps": [
+        { "action": "check", "command": "review monitoring for the named circuit", "expect": "circuit state confirmed", "description": "Confirm the circuit's current up/down state in monitoring before acting" },
+        { "action": "run_command", "command": "show interface / ping the far-end management address", "description": "Gather read-only reachability and interface counters" },
+        { "action": "manual", "description": "If the fault is on the carrier side, raise/track the carrier ticket; if internal, hand to the on-call network engineer. BUCKY does not change network config." },
+        { "action": "notify", "description": "Post work note: circuit state confirmed, reachability captured, routed to the correct owner" }
+      ],
+      "automatability": "low",
+      "frequency": 15,
+      "source_tickets": ["Mizuho Nexgen Circuit ID: E2/SE10/1577 - DOWN", "Eco Prime Colt Circuit ID: SNG/PHI/LE-309835 - DOWN"],
+      "notes": "Triage-and-route only. Carrier/circuit remediation is human-owned; this gathers evidence and routes."
+    },
+
+    {
+      "procedure_id": "network.firewall_whitelist_request",
+      "name": "Firewall / whitelist request triage (read-only)",
+      "trigger": {
+        "keywords": ["whitelist request", "whitelist", "firewall rules", "firewall rule", "check the firewall", "allowlist", "open port", "firewall"],
+        "assignment_group": "Network Operations"
+      },
+      "parameters": [
+        { "name": "requested_rule", "type": "string", "source": "short_description", "required": false, "description": "Source/destination/port requested" }
+      ],
+      "steps": [
+        { "action": "check", "command": "read-only: look up whether the requested rule already exists", "expect": "existing-rule state confirmed", "description": "Confirm whether the firewall/whitelist entry is already present" },
+        { "action": "manual", "description": "A firewall/whitelist change is a controlled change: validate the business justification and raise/approve the change request. BUCKY makes no firewall changes." },
+        { "action": "notify", "description": "Post work note: existing-rule state confirmed, change request routed for approval" }
+      ],
+      "automatability": "low",
+      "frequency": 6,
+      "source_tickets": ["New whitelist request", "Please check the firewall rules as requested RQ73154631"],
+      "notes": "Read-only lookup plus change-request routing. No firewall change is performed by BUCKY."
+    },
+
+    {
+      "procedure_id": "voice.line_down",
+      "name": "Voice / trading line down triage (read-only)",
+      "trigger": {
+        "keywords": ["line down", "voice support", "ipc ticket", "turret", "dealerboard", "handset", "hsbc"],
+        "assignment_group": "TPICAP LDN Voice Support"
+      },
+      "parameters": [
+        { "name": "line_ref", "type": "string", "source": "short_description", "required": false, "description": "Line / extension reference from the ticket" }
+      ],
+      "steps": [
+        { "action": "check", "command": "review voice platform for the named line/extension", "expect": "line state confirmed", "description": "Confirm the reported line's registration/state (read-only)" },
+        { "action": "run_command", "command": "check turret/handset registration and recent events", "description": "Gather read-only registration and event detail for the line" },
+        { "action": "manual", "description": "If an external carrier (e.g. IPC) owns the fault, track their ticket; otherwise dispatch voice engineering. BUCKY makes no voice changes." },
+        { "action": "notify", "description": "Post work note: line state confirmed, evidence captured, correct owner engaged" }
+      ],
+      "automatability": "low",
+      "frequency": 8,
+      "source_tickets": ["HSBC 3645 (45327) line down - IPC Ticket # INC02170820", "LONLON366206 - HSBC - Line Down"],
+      "notes": "Triage-and-route for trading voice lines. Remediation is human-owned."
+    },
+
+    {
+      "procedure_id": "identity.onedrive_teams_signin",
+      "name": "OneDrive / Teams sign-in and sync triage (read-only)",
+      "trigger": {
+        "keywords": ["one drive", "onedrive", "sign into", "sign in", "teams synchronisation", "teams synchronization", "teams connectivity", "connectivity issue", "unable to connect", "vpn", "lost access"],
+        "assignment_group": null
+      },
+      "parameters": [
+        { "name": "affected_user", "type": "username", "source": "short_description", "required": false, "description": "User reporting the sign-in/sync issue" }
+      ],
+      "steps": [
+        { "action": "check", "command": "confirm the user's account is enabled and licensed (read-only directory lookup)", "expect": "account active and licensed", "description": "Rule out a disabled/unlicensed account" },
+        { "action": "check", "command": "check service health for OneDrive/Teams", "expect": "no active outage", "description": "Rule out a platform-wide outage before touching the client" },
+        { "action": "manual", "description": "Guide the user through sign-out/sign-in and cache reset on their own device. BUCKY does not act on the endpoint." },
+        { "action": "notify", "description": "Post work note: account and service health confirmed, client re-auth steps provided" }
+      ],
+      "automatability": "medium",
+      "frequency": 10,
+      "source_tickets": ["Unable to sign into one drive - Arthur Leung", "Teams synchronisation", "Teams connectivity issue on mobile"],
+      "notes": "Read-only identity/service checks plus guided user steps. No endpoint or account changes by BUCKY."
+    },
+
+    {
+      "procedure_id": "identity.account_access",
+      "name": "Application access / duplicate login triage (read-only)",
+      "trigger": {
+        "keywords": ["duplicate login", "lost access", "unable to access", "access to the", "access permissions", "prod access", "access", "login", "user id required", "forced out"],
+        "assignment_group": null
+      },
+      "parameters": [
+        { "name": "affected_user", "type": "username", "source": "short_description", "required": false, "description": "User reporting the access issue" }
+      ],
+      "steps": [
+        { "action": "check", "command": "read-only directory/entitlement lookup for the user and the named application", "expect": "entitlement state confirmed", "description": "Confirm whether the user holds the required entitlement/group" },
+        { "action": "check", "command": "check for duplicate/concurrent sessions for the user", "expect": "session state confirmed", "description": "Identify duplicate logins or stuck sessions (read-only)" },
+        { "action": "manual", "description": "If an entitlement is missing or a session must be cleared, raise the access request / hand to the app team. BUCKY grants nothing and clears no sessions." },
+        { "action": "notify", "description": "Post work note: entitlement and session state confirmed, routed for the required change" }
+      ],
+      "automatability": "low",
+      "frequency": 12,
+      "source_tickets": ["Fred Quinto Duplicate Login", "Glass prod access", "Unable to access Metastorm", "User Joseph Breuer-Weil facing error User Id required"],
+      "notes": "Read-only access diagnosis. Granting access or clearing sessions is a human-owned, separately-authorised action."
+    },
+
+    {
+      "procedure_id": "trading.app_unavailable",
+      "name": "Trading application unavailable triage (read-only)",
+      "trigger": {
+        "keywords": ["deal amender down", "won't load", "wont load", "won't open", "mass disconnection", "not reaching", "prices not reaching", "disconnection", "unavailable", "oms", "trafix", "creditdeal", "trading grid", "taking focus", "lost orders", "forced out", "aux sheet"],
+        "assignment_group": null
+      },
+      "parameters": [
+        { "name": "application", "type": "string", "source": "short_description", "required": false, "description": "Affected trading application" },
+        { "name": "server", "type": "hostname", "source": "cmdb_ci", "required": false, "description": "Host behind the application, if known" }
+      ],
+      "steps": [
+        { "action": "check", "command": "confirm the application/service and its backing host are reachable (read-only health endpoint / ping)", "expect": "reachability confirmed", "description": "Establish whether the outage is app, host, or network" },
+        { "action": "run_command", "command": "read-only: service/process status and recent error log tail for the application", "description": "Gather evidence on where the failure is" },
+        { "action": "manual", "description": "Route to the owning application team with the evidence; restarts/failovers of trading systems are human-owned and change-controlled." },
+        { "action": "notify", "description": "Post work note: scope of outage established, evidence attached, owning team engaged" }
+      ],
+      "automatability": "low",
+      "frequency": 14,
+      "source_tickets": ["DEAL AMENDER DOWN", "Trafix OMS won't load in", "ICAP Option Nomura mass disconnection", "Prices not reaching CreditDeal screen"],
+      "notes": "Triage-and-route for trading apps. No restart or failover is performed by BUCKY; those remain human-owned and change-controlled."
+    },
+
+    {
+      "procedure_id": "compliance.glue_cdp_incident",
+      "name": "GLUE-CDP incident triage (read-only)",
+      "trigger": {
+        "keywords": ["glue-cdp", "glue cdp", "glue crawler", "cdp", "issue encountered with glue"],
+        "assignment_group": null
+      },
+      "parameters": [
+        { "name": "job_or_crawler", "type": "string", "source": "short_description", "required": false, "description": "GLUE job / crawler / dataset named in the ticket" }
+      ],
+      "steps": [
+        { "action": "check", "command": "read-only: last GLUE job/crawler run state and error for the named resource", "expect": "run state captured", "description": "Confirm whether the latest run failed and capture the error" },
+        { "action": "run_command", "command": "read-only: tail the relevant CDP/GLUE run log for the failing stage", "description": "Gather the failure detail for the compliance data pipeline" },
+        { "action": "manual", "description": "Decide whether a rerun or a data/schema fix is required, and hand to the CDP/Compliance data owner. BUCKY does not rerun or edit the pipeline." },
+        { "action": "notify", "description": "Post work note: run state and error captured, routed to the CDP data owner" }
+      ],
+      "automatability": "medium",
+      "frequency": 8,
+      "source_tickets": ["Issue Encountered with GLUE-CDP"],
+      "notes": "Read-only diagnosis of the compliance GLUE-CDP pipeline. Rerun/repair is human-owned."
+    },
+
+    {
+      "procedure_id": "desktop.peripheral",
+      "name": "Desktop peripheral triage (read-only)",
+      "trigger": {
+        "keywords": ["camera not working", "headphone", "headset", "audio cutting out", "microphone", "webcam", "peripheral", "docking station", "monitor not"],
+        "assignment_group": null
+      },
+      "parameters": [
+        { "name": "affected_user", "type": "username", "source": "short_description", "required": false, "description": "User reporting the peripheral fault" }
+      ],
+      "steps": [
+        { "action": "check", "command": "confirm the reported device and its default-device/driver state (read-only)", "expect": "device state captured", "description": "Establish whether the OS sees the device and which default is selected" },
+        { "action": "manual", "description": "Guide the user through reconnect / default-device / driver-reinstall on their own machine, or dispatch desk-side support. BUCKY does not act on the endpoint." },
+        { "action": "notify", "description": "Post work note: device state captured, guided remediation or desk-side dispatch recorded" }
+      ],
+      "automatability": "low",
+      "frequency": 6,
+      "source_tickets": ["Camera not working on KSK PC", "Headphone audio cutting out"],
+      "notes": "Read-only peripheral triage plus guided user steps; no endpoint changes by BUCKY."
     }
   ]
 }

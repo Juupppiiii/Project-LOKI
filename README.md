@@ -1,6 +1,6 @@
-# Project LOKI — repository map
+# Project BUCKY â€” repository map
 
-Human-in-the-loop ticket automation. **Execution is simulation only** — nothing
+Human-in-the-loop ticket automation. **Execution is simulation only** â€” nothing
 in this repo writes to or acts on a real target system.
 
 This file is the map: it tells you which folder is for what, so you can find the
@@ -34,7 +34,7 @@ where noted.
 
 ---
 
-## 1. AWS / ECS infrastructure — `infrastructure/` (Terraform)
+## 1. AWS / ECS infrastructure â€” `infrastructure/` (Terraform)
 
 Everything cloud, as **Terraform** in the TP ICAP `pace/manila` convention:
 a `modules/` library composed by `environments/dev/`. The web/API tier runs on
@@ -60,14 +60,14 @@ The services default to **single-task** and **simulation mode** until the
 multi-write transaction and claim-recovery work lands. See
 `infrastructure/README.md` and `deploy/README.md`.
 
-## 2. Container build — `Dockerfile` + `.dockerignore`
+## 2. Container build â€” `Dockerfile` + `.dockerignore`
 
 The image ECS runs. Two-stage build: stage 1 builds the React UI from its
 lockfile; stage 2 is a slim Python runtime that serves the API as a non-root
 user on port 8800. `.dockerignore` keeps secrets and local state out of the
 build context.
 
-## 3. The running application — `overlay/`
+## 3. The running application â€” `overlay/`
 
 The FastAPI service and the React UI it serves. This is the code inside the
 container. Full detail (run steps, upload formats, auth, safety controls,
@@ -76,7 +76,7 @@ config) is in `overlay/README.md`. Highlights:
 ```
 overlay/
   api.py            FastAPI transport (the contract every client speaks)
-  service.py        Application layer — the authority on all rules
+  service.py        Application layer â€” the authority on all rules
   domain.py         Pure model (no framework, DB, or transport)
   risk.py           Default-deny risk classification
   planner.py        Ticket + procedure -> approvable plan
@@ -88,26 +88,31 @@ overlay/
   worker_*.py       Worker transport seam (in-memory + SQS/Step Functions) and entrypoint
   auth.py           Entra OIDC sign-in + session cookies
   live.py           Read-only ServiceNow polling
-  ui/               React app (its own README; build output in ui/dist)
+  ui/               React app: Queue, Investigate, Knowledge, and Live workspaces
 ```
 
-## 4. Procedure engine — `system2/`
+The **Investigate** workspace assembles each live ticket into a downloadable
+evidence pack: observed ServiceNow facts, historical resolution clusters,
+ranked deterministic recommendations, bounded read-only diagnostics, optional
+Opus analysis, limitations, governance context, and durable engineer feedback.
+
+## 4. Procedure engine â€” `system2/`
 
 The domain-agnostic rulebook. Matches a ticket to a procedure and renders or
 simulates its steps. Knowledge lives in `system2/procedures.json`. Layer C (real
 execution) is hard-disabled. See the System 2 section of `PROGRESS.md`.
 
-## 5. Discovery pipeline (offline) — `src/`
+## 5. Discovery pipeline (offline) â€” `src/`
 
 Not the runtime. Pulls ServiceNow data, loads it into DuckDB, and scores
 automation candidates. `src/database.py` (open in your editor) is this: it loads
-CSVs into DuckDB for analysis — read-only, offline, not a governed runtime store.
+CSVs into DuckDB for analysis â€” read-only, offline, not a governed runtime store.
 Run via `python src/main.py`. See the System 1 section of `docs/PROGRESS.md`.
 
-## 6. Operational / one-off scripts — `scripts/`
+## 6. Operational / one-off scripts â€” `scripts/`
 
 One-off tooling, run directly. Each script resolves the project root from its
-own location (`__file__`), so it works from any working directory — run them as
+own location (`__file__`), so it works from any working directory â€” run them as
 `python scripts/<name>.py`. The app-importing ones put the project root on
 `sys.path` before importing `overlay`/`system2`.
 
@@ -126,19 +131,20 @@ own location (`__file__`), so it works from any working directory — run them a
 
 See `scripts/README.md` for the full guide and the pipeline order.
 
-## 7. Deployment — `deploy/`
+## 7. Deployment â€” `deploy/`
 
-A runbook for deploying LOKI to AWS (ECS + Aurora + Bedrock). The actual files
+A runbook for deploying BUCKY to AWS (ECS + Aurora + Bedrock). The actual files
 (`Dockerfile`, `requirements-api.txt`, `infra/`) stay in their functional
 locations (Docker/CDK require it), but `deploy/README.md` is the single entry
 point: deployment steps, blockers, and runtime configuration. See also
 `infra/README.md` for CDK-specific detail.
 
-## 8. Docs — `docs/`
+## 8. Docs â€” `docs/`
 
 | File | Purpose |
 |---|---|
 | `docs/PROGRESS.md` | Living status of all three systems and findings. |
+| `docs/NATIVE_AWS_ARCHITECTURE.md` | Recommended ECS-native AWS target architecture. |
 | `docs/Phase1_Conversation_Archive.md` | Archived build history. |
 
 ## 9. Dependencies & test config (repository root)
@@ -161,7 +167,7 @@ point: deployment steps, blockers, and runtime configuration. See also
 
 Local SQLite runtime databases (`overlay_tasks.db`, `overlay_demo.db`,
 `smoke_test.db` and their `-wal`/`-shm` sidecars) are git-ignored scratch state
-and are safe to delete — they are recreated on demand.
+and are safe to delete â€” they are recreated on demand.
 
 ---
 

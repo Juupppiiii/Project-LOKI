@@ -17,7 +17,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def create_store_from_env() -> StoreProtocol:
-    backend = os.getenv("LOKI_STORE_BACKEND", "sqlite").strip().lower()
+    backend = os.getenv("BUCKY_STORE_BACKEND", "sqlite").strip().lower()
     if backend == "sqlite":
         path = os.getenv("OVERLAY_DB", str(_PROJECT_ROOT / "overlay_tasks.db"))
         return Store(path)
@@ -26,5 +26,5 @@ def create_store_from_env() -> StoreProtocol:
 
         return PostgresStore.from_env()
     raise RuntimeError(
-        f"unsupported LOKI_STORE_BACKEND '{backend}'; choose sqlite or postgres"
+        f"unsupported BUCKY_STORE_BACKEND '{backend}'; choose sqlite or postgres"
     )

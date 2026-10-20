@@ -6,12 +6,12 @@ Wires the AWS-backed transport from the environment and runs the worker loop in
 the foreground until signalled. This is the command the ECS worker task runs.
 
 Required environment:
-    LOKI_SIMULATION_QUEUE_URL   SQS FIFO queue URL to consume
+    BUCKY_SIMULATION_QUEUE_URL   SQS FIFO queue URL to consume
 Optional:
     AWS_REGION / AWS_DEFAULT_REGION   region for the boto3 clients
-    LOKI_EXECUTION_MODE               must be "simulation" (default); refused otherwise
-    LOKI_STORE_BACKEND / OVERLAY_DB / LOKI_POSTGRES_*   same as the API
-    LOKI_WORKER_LEASE_TTL_SECONDS / LOKI_WORKER_WAIT_SECONDS / LOKI_WORKER_BATCH
+    BUCKY_EXECUTION_MODE               must be "simulation" (default); refused otherwise
+    BUCKY_STORE_BACKEND / OVERLAY_DB / BUCKY_POSTGRES_*   same as the API
+    BUCKY_WORKER_LEASE_TTL_SECONDS / BUCKY_WORKER_WAIT_SECONDS / BUCKY_WORKER_BATCH
 
 The worker shares the same store (and therefore the same idempotency ledger) as
 the API by reading the same backend env, so execution can never happen twice.
@@ -30,10 +30,10 @@ from .worker_aws import SqsTaskQueue, StepFunctionsReporter
 
 
 def _refuse_non_simulation() -> None:
-    mode = os.getenv("LOKI_EXECUTION_MODE", "simulation")
+    mode = os.getenv("BUCKY_EXECUTION_MODE", "simulation")
     if mode != "simulation":
         raise SystemExit(
-            f"refusing to start: LOKI_EXECUTION_MODE={mode!r}; this worker is "
+            f"refusing to start: BUCKY_EXECUTION_MODE={mode!r}; this worker is "
             "simulation-only"
         )
 
@@ -41,9 +41,9 @@ def _refuse_non_simulation() -> None:
 def main() -> int:
     _refuse_non_simulation()
 
-    queue_url = os.getenv("LOKI_SIMULATION_QUEUE_URL", "").strip()
+    queue_url = os.getenv("BUCKY_SIMULATION_QUEUE_URL", "").strip()
     if not queue_url:
-        raise SystemExit("LOKI_SIMULATION_QUEUE_URL is required")
+        raise SystemExit("BUCKY_SIMULATION_QUEUE_URL is required")
 
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
 

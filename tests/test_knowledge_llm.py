@@ -42,7 +42,7 @@ class FakeBackend:
 
 
 def test_default_backend_is_offline_echo(monkeypatch):
-    monkeypatch.delenv("LOKI_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("BUCKY_LLM_ENABLED", raising=False)
     backend = kllm.make_backend()
     assert isinstance(backend, kllm.EchoBackend)
     assert "offline" in backend.name
@@ -99,7 +99,7 @@ def test_recommend_steps_keeps_authoritative_match(service, restart_ticket):
 
 
 def test_recommend_steps_offline_is_honest(service, restart_ticket, monkeypatch):
-    monkeypatch.delenv("LOKI_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("BUCKY_LLM_ENABLED", raising=False)
     result = service.recommend_steps(restart_ticket)
     assert result["model_available"] is False
     assert "offline" in result["backend"]

@@ -59,7 +59,7 @@ class EchoBackend:
 
     def complete(self, system: str, user: str, *, max_tokens: int = 1200) -> str:
         return (
-            "[OFFLINE ADVISORY — no live model attached]\n"
+            "[OFFLINE ADVISORY â€” no live model attached]\n"
             "A grounded recommendation requires a configured Bedrock model "
             "(set BEDROCK_MODEL_ID and provide AWS credentials). The retrieved "
             "grounding below is real; the synthesis step is skipped offline.\n"
@@ -128,14 +128,14 @@ class BedrockBackend:
 def llm_enabled() -> bool:
     """A live model is used only when explicitly enabled."""
 
-    return os.getenv("LOKI_LLM_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
+    return os.getenv("BUCKY_LLM_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
 def make_backend(*, client: Any = None) -> LLMBackend:
     """Pick the backend: Bedrock when enabled, else the offline echo.
 
     Defaulting to echo keeps the feature safe and free: it never silently makes
-    a paid model call or a network request unless LOKI_LLM_ENABLED is set.
+    a paid model call or a network request unless BUCKY_LLM_ENABLED is set.
     """
 
     if llm_enabled() or client is not None:

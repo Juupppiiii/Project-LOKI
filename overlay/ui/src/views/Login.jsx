@@ -29,7 +29,7 @@ export default function Login({ onSignedIn }) {
 
   async function workAccount() {
     setBusy(true);
-    setMsg({ kind: "", text: "Redirecting to Microsoft…" });
+    setMsg({ kind: "", text: "Redirecting to Microsoftâ€¦" });
     try {
       const { authorize_url } = await api.loginUrl();
       window.location.href = authorize_url;
@@ -45,7 +45,7 @@ export default function Login({ onSignedIn }) {
       return;
     }
     setBusy(true);
-    setMsg({ kind: "", text: "Signing in…" });
+    setMsg({ kind: "", text: "Signing inâ€¦" });
     try {
       const me = await api.devLogin(email.trim(), role);
       onSignedIn(me);
@@ -62,14 +62,14 @@ export default function Login({ onSignedIn }) {
           <span className="brand-mark" aria-hidden="true">
             L
           </span>
-          <h1>LOKI</h1>
+          <h1>BUCKY</h1>
         </div>
         <p className="hint" style={{ textAlign: "center", marginBottom: "var(--sp-5)" }}>
           Human-in-the-loop ticket automation. Sign in to continue.
         </p>
 
         {!status ? (
-          <Message>Loading…</Message>
+          <Message>Loadingâ€¦</Message>
         ) : (
           <>
             {status.entra_configured ? (
@@ -123,7 +123,7 @@ export default function Login({ onSignedIn }) {
                     ))}
                   </select>
                   <p className="hint">
-                    Determines what you may do — only an approver can approve
+                    Determines what you may do â€” only an approver can approve
                     agent actions, only an admin can manage access credentials.
                   </p>
                 </div>
@@ -151,7 +151,7 @@ export default function Login({ onSignedIn }) {
             {status.ephemeral_session_key ? (
               <p className="hint" style={{ marginTop: "var(--sp-4)" }}>
                 Note: no session key is set on the server, so everyone is signed
-                out when it restarts. Set <code>LOKI_SECRET_KEY</code> to keep
+                out when it restarts. Set <code>BUCKY_SECRET_KEY</code> to keep
                 sessions across restarts.
               </p>
             ) : null}
@@ -160,7 +160,7 @@ export default function Login({ onSignedIn }) {
       </div>
 
       <p className="login-foot hint">
-        Signing in proves who approves. It does not give the agent your access —
+        Signing in proves who approves. It does not give the agent your access â€”
         the agent only ever acts through the scoped service accounts in the
         credentials centre.
       </p>

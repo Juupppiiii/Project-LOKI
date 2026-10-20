@@ -9,8 +9,8 @@ real" boundary. Posting a work note:
 
 Two independent switches must BOTH be on before this connector writes anything:
 
-1. the gateway must run in ``live`` mode (``LOKI_EXECUTION_MODE=live``), and
-2. ``LOKI_SERVICENOW_WRITE_ENABLED=1`` must be set.
+1. the gateway must run in ``live`` mode (``BUCKY_EXECUTION_MODE=live``), and
+2. ``BUCKY_SERVICENOW_WRITE_ENABLED=1`` must be set.
 
 With neither, this module is never even registered. With live mode but the
 write switch off, the connector runs in **dry-run**: it validates everything and
@@ -35,7 +35,7 @@ from .connectors import ActionEnvelope, ActionResult, ConnectorFailure
 # default uses ``requests``; tests inject a fake so no network is touched.
 Transport = Callable[..., Any]
 
-WRITE_ENV = "LOKI_SERVICENOW_WRITE_ENABLED"
+WRITE_ENV = "BUCKY_SERVICENOW_WRITE_ENABLED"
 
 
 def write_enabled() -> bool:
@@ -131,7 +131,7 @@ class ServiceNowConnector:
 
     @property
     def _table(self) -> str:
-        return os.getenv("LOKI_SERVICENOW_TABLE", "incident").strip() or "incident"
+        return os.getenv("BUCKY_SERVICENOW_TABLE", "incident").strip() or "incident"
 
     def _resolve_sys_id(self, envelope: ActionEnvelope, creds: dict[str, Any], number: str) -> str:
         # Prefer an explicitly supplied sys_id; otherwise look it up by number.

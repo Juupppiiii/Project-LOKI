@@ -2,7 +2,7 @@
 
 The dry-run inventory and checksum logic run against SQLite alone and always
 execute. The full apply+verify path needs a PostgreSQL target and is skipped
-unless LOKI_TEST_POSTGRES_DSN is set.
+unless BUCKY_TEST_POSTGRES_DSN is set.
 """
 
 from __future__ import annotations
@@ -59,9 +59,9 @@ def test_missing_source_database_is_rejected(tmp_path):
 
 @pytest.mark.postgres
 def test_apply_and_verify_against_postgres(sqlite_path, restart_ticket, monkeypatch):
-    dsn = os.getenv("LOKI_TEST_POSTGRES_DSN")
+    dsn = os.getenv("BUCKY_TEST_POSTGRES_DSN")
     if not dsn:
-        pytest.skip("set LOKI_TEST_POSTGRES_DSN to run the full migration")
+        pytest.skip("set BUCKY_TEST_POSTGRES_DSN to run the full migration")
 
     _seed(sqlite_path, restart_ticket)
     from overlay.postgres_store import PostgresStore

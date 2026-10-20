@@ -1,4 +1,4 @@
-"""Auto-draft LOKI handbook procedures from mined resolution patterns, using
+"""Auto-draft BUCKY handbook procedures from mined resolution patterns, using
 Claude (Opus 5 on Bedrock) grounded in the real example resolutions.
 
 Each draft is written as a handbook markdown file under overlay/examples/auto/.
@@ -7,7 +7,7 @@ risk model still classifies every step (destructive actions stay human-only).
 The model drafts; it approves and executes nothing.
 
 Run (requires LLM enabled + AWS creds):
-    set LOKI_LLM_ENABLED=1
+    set BUCKY_LLM_ENABLED=1
     python scripts/autodraft_procedures.py --top 8
     python scripts/autodraft_procedures.py --top 8 --min-count 100
 """
@@ -31,7 +31,7 @@ OUT_DIR = ROOT / "knowledge" / "handbooks"
 
 SYSTEM = (
     "You draft IT operations runbooks ('procedures') for a human-in-the-loop "
-    "automation tool called LOKI. You are given a RECURRING resolution pattern "
+    "automation tool called BUCKY. You are given a RECURRING resolution pattern "
     "with real example close/work notes. Produce ONE procedure in the exact "
     "markdown format specified. Rules you must follow:\n"
     "- Ground the steps in what the real resolutions actually did; do not invent "
@@ -92,8 +92,8 @@ def main() -> int:
 
     if not kllm.llm_enabled():
         print(
-            "LOKI_LLM_ENABLED is not set. Auto-drafting needs a live model to "
-            "synthesise procedures. Set LOKI_LLM_ENABLED=1 and provide AWS creds.",
+            "BUCKY_LLM_ENABLED is not set. Auto-drafting needs a live model to "
+            "synthesise procedures. Set BUCKY_LLM_ENABLED=1 and provide AWS creds.",
             file=sys.stderr,
         )
         return 2

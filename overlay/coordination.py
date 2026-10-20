@@ -16,7 +16,7 @@ class Lease:
     expires_at: str
 
 
-def new_lease_owner(prefix: str = "loki") -> str:
+def new_lease_owner(prefix: str = "bucky") -> str:
     """Unique process-instance identity; never reuse hostname or PID alone."""
 
     return f"{prefix}:{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex}"

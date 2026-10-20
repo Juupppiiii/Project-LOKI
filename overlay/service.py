@@ -52,16 +52,16 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # -- Governance controls -----------------------------------------------------
 # Separation of duties: the person who triggers execution must not be the same
 # person who approved the chunk. Default ON. It can be relaxed for a single-user
-# dev box via LOKI_ENFORCE_SOD=0, but production should leave it on.
+# dev box via BUCKY_ENFORCE_SOD=0, but production should leave it on.
 def _sod_enforced() -> bool:
-    return os.getenv("LOKI_ENFORCE_SOD", "1").strip().lower() not in ("0", "false", "no", "")
+    return os.getenv("BUCKY_ENFORCE_SOD", "1").strip().lower() not in ("0", "false", "no", "")
 
 
 # Approval expiry: an approval older than this many seconds no longer authorises
 # execution and must be renewed. 0 disables expiry. Default 1 hour.
 def _approval_ttl_seconds() -> int:
     try:
-        return max(0, int(os.getenv("LOKI_APPROVAL_TTL_SECONDS", "3600")))
+        return max(0, int(os.getenv("BUCKY_APPROVAL_TTL_SECONDS", "3600")))
     except ValueError:
         return 3600
 
@@ -93,7 +93,7 @@ def _age_seconds(iso_timestamp: str) -> float | None:
 # conservative so a weak signal abstains instead of asserting a fix.
 def _recommend_floor() -> float:
     try:
-        return float(os.getenv("LOKI_RECOMMEND_MIN_CONFIDENCE", "0.45"))
+        return float(os.getenv("BUCKY_RECOMMEND_MIN_CONFIDENCE", "0.45"))
     except ValueError:
         return 0.45
 
@@ -386,6 +386,24 @@ def normalize_ticket(ticket: dict[str, Any]) -> dict[str, Any]:
     return {k: _flatten_reference(v) for k, v in ticket.items()}
 
 
+def _plain_evidence_value(value: Any) -> Any:
+    """Render ServiceNow rich text as readable evidence, never markup.
+
+    React already escapes strings, so this is not an XSS repair; it removes the
+    literal HTML tags ServiceNow stores in description fields so an evidence
+    pack reads like a case file. The original payload remains unchanged.
+    """
+
+    if not isinstance(value, str) or "<" not in value:
+        return value
+    from html import unescape
+
+    text = re.sub(r"<\s*br\s*/?\s*>", "\n", value, flags=re.I)
+    text = re.sub(r"</\s*(p|div|li|tr)\s*>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    return re.sub(r"[ \t]+", " ", unescape(text)).strip()
+
+
 class OverlayService:
     def __init__(
         self,
@@ -469,7 +487,7 @@ class OverlayService:
         and never feeds the approval path.
         """
 
-        if os.getenv("LOKI_SEMANTIC_SUGGESTIONS", "1").strip().lower() in (
+        if os.getenv("BUCKY_SEMANTIC_SUGGESTIONS", "1").strip().lower() in (
             "0", "false", "no", "",
         ):
             return {"enabled": False, "suggestions": [], "backend": None}
@@ -543,7 +561,7 @@ class OverlayService:
         sem_by_id: dict[str, float] = {}
         matcher = None
         semantic_enabled = os.getenv(
-            "LOKI_SEMANTIC_SUGGESTIONS", "1"
+            "BUCKY_SEMANTIC_SUGGESTIONS", "1"
         ).strip().lower() not in ("0", "false", "no", "")
         if semantic_enabled:
             matcher = self._semantic_matcher(snapshot)
@@ -889,6 +907,8 @@ class OverlayService:
                 **audit_base,
                 "simulated": result.simulated,
                 "backend": result.backend,
+                "read_only": True,
+                "evidence": result.evidence,
             },
         )
         return result.to_dict()
@@ -1874,7 +1894,7 @@ class OverlayService:
         ttl = (
             timeout_seconds
             if timeout_seconds is not None
-            else int(os.getenv("LOKI_EXECUTION_CLAIM_TIMEOUT_SECONDS", "900"))
+            else int(os.getenv("BUCKY_EXECUTION_CLAIM_TIMEOUT_SECONDS", "900"))
         )
         reclaimed = self.store.reclaim_stale_executions(ttl)
         for rec in reclaimed:
@@ -2326,6 +2346,411 @@ class OverlayService:
                 for m in ranked[:3]
             ],
         }
+
+    # ===================================================================
+    # Investigation workspace, evidence packs, and recommendation feedback
+    # ===================================================================
+
+    _FEEDBACK_VERDICTS = {
+        "accepted",
+        "partially_useful",
+        "rejected",
+        "insufficient_evidence",
+    }
+
+    def save_recommendation_feedback(
+        self, payload: dict[str, Any], actor: str
+    ) -> dict[str, Any]:
+        """Persist an engineer's reviewed recommendation outcome.
+
+        Explicit human validation is stored separately from raw closure notes so
+        it can become the higher-quality evaluation signal. Feedback never
+        changes an active procedure or authorises execution.
+        """
+
+        ticket_ref = str(payload.get("ticket_ref") or "").strip()
+        verdict = str(payload.get("verdict") or "").strip().lower()
+        if not ticket_ref:
+            raise DomainError("ticket_ref is required")
+        if verdict not in self._FEEDBACK_VERDICTS:
+            raise DomainError(
+                "verdict must be one of: "
+                + ", ".join(sorted(self._FEEDBACK_VERDICTS))
+            )
+
+        time_saved = payload.get("time_saved_minutes")
+        if time_saved in ("", None):
+            time_saved = None
+        else:
+            try:
+                time_saved = int(time_saved)
+            except (TypeError, ValueError):
+                raise DomainError("time_saved_minutes must be an integer") from None
+            if not 0 <= time_saved <= 1440:
+                raise DomainError("time_saved_minutes must be between 0 and 1440")
+
+        def clean_list(name: str) -> list[str]:
+            value = payload.get(name) or []
+            if not isinstance(value, list):
+                raise DomainError(f"{name} must be a list")
+            return [str(item).strip()[:500] for item in value if str(item).strip()][
+                :20
+            ]
+
+        record = {
+            "feedback_id": new_id("fbk"),
+            "ticket_ref": ticket_ref[:80],
+            "live_id": str(payload.get("live_id") or "").strip()[:80],
+            "procedure_id": str(payload.get("procedure_id") or "").strip()[:160],
+            "verdict": verdict,
+            "useful_steps": clean_list("useful_steps"),
+            "wrong_steps": clean_list("wrong_steps"),
+            "actual_resolution": str(payload.get("actual_resolution") or "").strip()[
+                :4000
+            ],
+            "notes": str(payload.get("notes") or "").strip()[:2000],
+            "human_intervention": bool(payload.get("human_intervention", False)),
+            "time_saved_minutes": time_saved,
+            "recurrence": payload.get("recurrence"),
+            "created_by": actor,
+            "created_at": now_iso(),
+        }
+        self.store.save_recommendation_feedback(record)
+        self.store.append_audit(
+            ticket_ref,
+            "recommendation.feedback_recorded",
+            actor,
+            {
+                "feedback_id": record["feedback_id"],
+                "procedure_id": record["procedure_id"],
+                "verdict": verdict,
+                "human_intervention": record["human_intervention"],
+                "time_saved_minutes": time_saved,
+            },
+        )
+        return record
+
+    def list_recommendation_feedback(
+        self,
+        ticket_ref: str | None = None,
+        procedure_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self.store.list_recommendation_feedback(
+            ticket_ref=ticket_ref,
+            procedure_id=procedure_id,
+            limit=limit,
+        )
+
+    def recommendation_feedback_summary(self) -> dict[str, Any]:
+        records = self.store.list_recommendation_feedback(limit=500)
+        counts = {key: 0 for key in sorted(self._FEEDBACK_VERDICTS)}
+        minutes: list[int] = []
+        interventions = 0
+        for record in records:
+            verdict = record.get("verdict")
+            if verdict in counts:
+                counts[verdict] += 1
+            value = record.get("time_saved_minutes")
+            if isinstance(value, int):
+                minutes.append(value)
+            if record.get("human_intervention"):
+                interventions += 1
+        total = len(records)
+        useful = counts["accepted"] + counts["partially_useful"]
+        return {
+            "total": total,
+            "counts": counts,
+            "useful_rate": round(useful / total, 3) if total else None,
+            "human_intervention_rate": (
+                round(interventions / total, 3) if total else None
+            ),
+            "estimated_minutes_saved": sum(minutes),
+            "average_minutes_saved": (
+                round(sum(minutes) / len(minutes), 1) if minutes else None
+            ),
+        }
+
+    def run_triage(self, live_id: str, actor: str) -> dict[str, Any]:
+        """Run the Tier A read-only triage agent against a matched live ticket.
+
+        The agent gathers read-only evidence and drafts a recommendation; it
+        executes NOTHING. The verdict and full tool transcript are persisted in
+        the dedicated ``triage_runs`` table and the run is audited. A human
+        reviews the verdict and approves any disposition separately.
+
+        Refuses when the feature is disabled or the ticket does not exist. A
+        ticket that produced no procedure match can still be triaged (the agent
+        decides read-only whether it is a self-resolved monitoring blip), but we
+        record whether it was matched for context.
+        """
+
+        from . import triage_agent as ta
+
+        if not ta.triage_agent_enabled():
+            raise DomainError(
+                "the triage agent is disabled; set BUCKY_TRIAGE_AGENT_ENABLED=1 "
+                "to enable read-only triage"
+            )
+
+        live = self.store.get_live_ticket(live_id)
+        if live is None:
+            raise DomainError(f"unknown live ticket '{live_id}'")
+
+        ticket = normalize_ticket(live.payload)
+        match, _ranked, _augmented, _applied = self._match(ticket)
+
+        agent = ta.TriageAgent()
+        result = agent.run(ticket)
+        result_doc = result.to_dict()
+
+        record = {
+            "triage_id": new_id("trg"),
+            "live_id": live_id,
+            "ticket_ref": live.ticket_number,
+            "host": result.alert.get("host") or None,
+            "alert_kind": result.alert.get("alert_kind") or None,
+            "classification": result.verdict.classification.value,
+            "routed_to_human": result.verdict.routed_to_human,
+            "simulated": result.simulated,
+            "matched_procedure_id": (
+                match.procedure.procedure_id if match is not None else None
+            ),
+            "planner": result.planner,
+            "steps_used": result.steps_used,
+            "alert": result.alert,
+            "transcript": result_doc["transcript"],
+            "verdict": result_doc["verdict"],
+            "note": result_doc["note"],
+            "created_by": actor,
+            "created_at": now_iso(),
+        }
+        self.store.save_triage_run(record)
+        self.store.append_audit(
+            live.ticket_number,
+            "triage.completed",
+            actor,
+            {
+                "triage_id": record["triage_id"],
+                "classification": record["classification"],
+                "routed_to_human": record["routed_to_human"],
+                "simulated": record["simulated"],
+                "host": record["host"],
+                "steps_used": record["steps_used"],
+            },
+        )
+        return record
+
+    def get_triage_run(self, triage_id: str) -> dict[str, Any] | None:
+        return self.store.get_triage_run(triage_id)
+
+    def list_triage_runs(
+        self,
+        live_id: str | None = None,
+        ticket_ref: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return self.store.list_triage_runs(
+            live_id=live_id, ticket_ref=ticket_ref, limit=limit
+        )
+
+    def evidence_pack(
+        self, live_id: str, *, include_opus: bool = False
+    ) -> dict[str, Any]:
+        """Assemble one provenance-separated investigation dossier.
+
+        The pack separates observed ticket facts, retrieved historical evidence,
+        deterministic inference, read-only diagnostics, governance state, and
+        human feedback. Opus is opt-in per request because it is paid and
+        advisory; building the core pack never triggers a model call.
+        """
+
+        live = self.store.get_live_ticket(live_id)
+        if live is None:
+            raise DomainError(f"unknown live ticket '{live_id}'")
+
+        ticket = normalize_ticket(live.payload)
+        recommendation = self.recommend_candidates(ticket, top=5)
+        historical = self.resolution_clusters(ticket, top=25)
+        diagnostic_events = [
+            event.to_dict()
+            for event in self.store.list_audit(live.ticket_number)
+            if event.event.startswith("diagnostic.")
+        ]
+        feedback = self.list_recommendation_feedback(
+            ticket_ref=live.ticket_number, limit=50
+        )
+
+        run_summary = None
+        run_events: list[dict[str, Any]] = []
+        if live.run_id:
+            run = self.store.get_run(live.run_id)
+            if run is not None:
+                run_summary = {
+                    "run_id": run.run_id,
+                    "state": run.state.value,
+                    "procedure_id": run.procedure_id,
+                    "procedure_name": run.procedure_name,
+                    "completed_steps": run.completed_step_count,
+                    "total_steps": len(run.steps),
+                }
+                run_events = [e.to_dict() for e in self.store.list_audit(run.run_id)]
+
+        fact_fields = (
+            "number",
+            "short_description",
+            "description",
+            "category",
+            "subcategory",
+            "assignment_group",
+            "cmdb_ci",
+            "priority",
+            "state",
+            "contact_type",
+            "sys_created_on",
+            "sys_updated_on",
+        )
+        facts = [
+            {
+                "field": key,
+                "value": _plain_evidence_value(ticket.get(key)),
+                "source": "servicenow",
+            }
+            for key in fact_fields
+            if ticket.get(key) not in (None, "")
+        ]
+
+        missing_information: list[str] = []
+        for field, label in (
+            ("description", "Detailed description"),
+            ("assignment_group", "Assignment group"),
+            ("cmdb_ci", "Configuration item"),
+            ("priority", "Priority"),
+        ):
+            if not str(ticket.get(field) or "").strip():
+                missing_information.append(label)
+        if recommendation.get("candidates"):
+            for name in recommendation["candidates"][0]["evidence"].get(
+                "missing_parameters", []
+            ):
+                if name not in missing_information:
+                    missing_information.append(name)
+
+        limitations: list[str] = []
+        if recommendation.get("abstained"):
+            limitations.append(recommendation.get("reason") or "Recommendation abstained")
+        if not historical.get("clusters"):
+            limitations.append("No similar resolved-ticket cluster was available")
+        if not diagnostic_events:
+            limitations.append("No read-only diagnostic evidence has been collected")
+        if not include_opus:
+            limitations.append("Opus analysis was not requested for this pack")
+
+        pack = {
+            "evidence_pack_id": new_id("epk"),
+            "generated_at": now_iso(),
+            "live_id": live.live_id,
+            "ticket_ref": live.ticket_number,
+            "status": live.status.value,
+            "observed_facts": facts,
+            "retrieved_evidence": {
+                "resolution_clusters": historical.get("clusters", []),
+                "retrieved_ticket_count": historical.get("retrieved", 0),
+            },
+            "inferred_recommendation": recommendation,
+            "diagnostics": diagnostic_events,
+            "governance": {
+                "read_only_mvp": True,
+                "execution_mode": self.gateway.mode,
+                "run": run_summary,
+                "run_events": run_events,
+            },
+            "missing_information": missing_information,
+            "limitations": limitations,
+            "feedback": feedback,
+            "feedback_summary": self.recommendation_feedback_summary(),
+            "opus": self.recommend_steps(ticket) if include_opus else None,
+        }
+        pack["markdown"] = self._evidence_pack_markdown(pack)
+        return pack
+
+    @staticmethod
+    def _evidence_pack_markdown(pack: dict[str, Any]) -> str:
+        lines = [
+            f"# Evidence pack â€” {pack['ticket_ref']}",
+            "",
+            f"Generated: {pack['generated_at']}",
+            "",
+            "## Observed facts",
+        ]
+        for fact in pack["observed_facts"]:
+            lines.append(f"- **{fact['field']}**: {fact['value']} _(ServiceNow)_")
+
+        recommendation = pack["inferred_recommendation"]
+        lines.extend(
+            [
+                "",
+                "## Recommendation",
+                f"- Decision: **{recommendation['decision']}**",
+                f"- Reason: {recommendation['reason']}",
+            ]
+        )
+        for candidate in recommendation.get("candidates", [])[:3]:
+            signals = ", ".join(candidate["evidence"].get("signals", [])) or "none"
+            lines.append(
+                f"- {candidate['procedure_name']} â€” confidence "
+                f"{candidate['confidence']:.2f}; signals: {signals}"
+            )
+
+        lines.extend(["", "## Retrieved evidence"])
+        clusters = pack["retrieved_evidence"]["resolution_clusters"]
+        if clusters:
+            for cluster in clusters[:5]:
+                tickets = ", ".join(cluster.get("tickets", [])) or "uncited"
+                lines.append(
+                    f"- Pattern seen {cluster['count']} time(s): "
+                    f"{cluster['representative']} â€” tickets: {tickets}"
+                )
+        else:
+            lines.append("- No historical resolution clusters available.")
+
+        lines.extend(["", "## Read-only diagnostics"])
+        if pack["diagnostics"]:
+            for event in pack["diagnostics"]:
+                detail = event.get("detail", {})
+                lines.append(
+                    f"- {event['event']}: {detail.get('operation_id', 'diagnostic')} "
+                    f"on {detail.get('target', 'unknown target')}"
+                )
+        else:
+            lines.append("- No diagnostic evidence collected.")
+
+        if pack.get("opus"):
+            lines.extend(
+                [
+                    "",
+                    "## Opus advisory analysis",
+                    pack["opus"].get("recommendation", "No model response."),
+                ]
+            )
+
+        lines.extend(["", "## Missing information"])
+        lines.extend(
+            [f"- {item}" for item in pack["missing_information"]]
+            or ["- None identified."]
+        )
+        lines.extend(["", "## Limitations"])
+        lines.extend([f"- {item}" for item in pack["limitations"]] or ["- None recorded."])
+        lines.extend(
+            [
+                "",
+                "## Governance",
+                "- Read-only MVP: **yes**",
+                f"- Execution mode: **{pack['governance']['execution_mode']}**",
+                "- This pack is evidence for human review; it authorises nothing.",
+            ]
+        )
+        return "\n".join(lines)
 
     # ===================================================================
     # Live ticket intake (read-only)

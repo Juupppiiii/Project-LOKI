@@ -1,31 +1,31 @@
-# Authentication & roles (LOKI)
+# Authentication & roles (BUCKY)
 
 Login proves **who is approving**. It does **not** give the agent that person's
-access — the agent only ever acts through the scoped service accounts in the
+access â€” the agent only ever acts through the scoped service accounts in the
 credentials centre. These are two different things on purpose.
 
 ## Sign-in methods
 
-LOKI picks one automatically:
+BUCKY picks one automatically:
 
-- **Microsoft Entra ID (work account)** — used when Entra is configured. You
+- **Microsoft Entra ID (work account)** â€” used when Entra is configured. You
   are redirected to Microsoft, sign in as normal, and return with a verified
   identity. This needs an app registration your Entra admins create.
-- **Local dev login** — the fallback when Entra is not configured. Asks for an
+- **Local dev login** â€” the fallback when Entra is not configured. Asks for an
   email and a role and trusts them. Fine for a prototype; it is **not** real
   authentication. It is automatically disabled the moment Entra is configured.
 
 ## Enabling enforcement
 
-By default (`LOKI_ENFORCE_AUTH` unset) the app still accepts the old
+By default (`BUCKY_ENFORCE_AUTH` unset) the app still accepts the old
 header-actor, so local use is unchanged. Turn on real enforcement with:
 
 ```powershell
-$env:LOKI_ENFORCE_AUTH = "1"       # writes now require a signed-in session
-$env:LOKI_SECRET_KEY   = "<a long random string>"   # keeps sessions across restarts
+$env:BUCKY_ENFORCE_AUTH = "1"       # writes now require a signed-in session
+$env:BUCKY_SECRET_KEY   = "<a long random string>"   # keeps sessions across restarts
 ```
 
-With enforcement on, the `X-Actor` header is ignored — identity comes only from
+With enforcement on, the `X-Actor` header is ignored â€” identity comes only from
 the signed session cookie, so it cannot be spoofed.
 
 ## Configuring Entra (your Azure AD admins)
@@ -33,13 +33,13 @@ the signed session cookie, so it cannot be spoofed.
 Create an app registration, then set:
 
 ```powershell
-$env:LOKI_ENTRA_TENANT_ID     = "<tenant guid>"
-$env:LOKI_ENTRA_CLIENT_ID     = "<application id>"
-$env:LOKI_ENTRA_CLIENT_SECRET = "<client secret>"
-$env:LOKI_ENTRA_REDIRECT_URI  = "https://<host>/api/auth/callback"
-# optional: map Entra groups/app-roles to LOKI roles
-$env:LOKI_ENTRA_ROLE_MAP      = "<group-guid>=approver,<group-guid>=admin"
-$env:LOKI_DEFAULT_ROLE        = "operator"
+$env:BUCKY_ENTRA_TENANT_ID     = "<tenant guid>"
+$env:BUCKY_ENTRA_CLIENT_ID     = "<application id>"
+$env:BUCKY_ENTRA_CLIENT_SECRET = "<client secret>"
+$env:BUCKY_ENTRA_REDIRECT_URI  = "https://<host>/api/auth/callback"
+# optional: map Entra groups/app-roles to BUCKY roles
+$env:BUCKY_ENTRA_ROLE_MAP      = "<group-guid>=approver,<group-guid>=admin"
+$env:BUCKY_DEFAULT_ROLE        = "operator"
 ```
 
 The redirect URI must be registered on the app registration exactly as above.
@@ -66,9 +66,9 @@ mirrors the result; it cannot grant anything the server would refuse.
 - viewer cannot create a run; operator can, but cannot approve; approver can
 - credentials are admin-only
 - audit is attributed to the **signed-in** identity
-- a spoofed `X-Actor` header is ignored — the session identity wins
+- a spoofed `X-Actor` header is ignored â€” the session identity wins
 - an executed step is recorded as `actor=agent` with `triggered_by` the person
-  — i.e. the agent still acts as itself, never as the signed-in user
+  â€” i.e. the agent still acts as itself, never as the signed-in user
 - connectors remain disabled; execution is still simulated
 - logout clears the session and blocks writes again
 
@@ -80,7 +80,7 @@ mirrors the result; it cannot grant anything the server would refuse.
   remaining hardening step before production.
 - Sessions are signed cookies with no server-side revocation list; signing out
   clears the cookie, and a stolen cookie is valid until it expires
-  (`LOKI_SESSION_MAX_AGE`, default 8h). Rotating `LOKI_SECRET_KEY` invalidates
+  (`BUCKY_SESSION_MAX_AGE`, default 8h). Rotating `BUCKY_SECRET_KEY` invalidates
   all sessions at once.
-- Dev login is trust-on-assertion by design. Never run a real deployment on it —
+- Dev login is trust-on-assertion by design. Never run a real deployment on it â€”
   configure Entra.

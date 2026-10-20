@@ -1,4 +1,4 @@
-"""Generate the LOKI project PowerPoint deck.
+"""Generate the BUCKY project PowerPoint deck.
 
 A stakeholder-facing walkthrough of the whole project: the problem, the three
 systems, how a ticket flows, the risk model, who executes the work, the
@@ -102,7 +102,7 @@ def header(s, num, title, subtitle=None):
         text(s, 1.37, 0.92, 11.4, 0.4, [[(subtitle, 12.5, False, INK2)]])
     # footer
     rect(s, 0.55, 7.06, 12.23, 0.02, fill=LINE)
-    text(s, 0.55, 7.08, 6, 0.3, [[("Project LOKI", 8.5, False, INK3)]])
+    text(s, 0.55, 7.08, 6, 0.3, [[("Project BUCKY", 8.5, False, INK3)]])
     text(s, 6.7, 7.08, 6.08, 0.3,
          [[("Simulation only - no live execution", 8.5, False, INK3)]],
          align=PP_ALIGN.RIGHT)
@@ -136,13 +136,13 @@ def arrow_right(s, x, y, w, color=INK3):
 
 
 # ===========================================================================
-# 1 — COVER
+# 1 â€” COVER
 # ===========================================================================
 s = slide()
 bg(s, INK)
 rect(s, 0.9, 2.35, 1.15, 1.15, fill=ACCENT)
 text(s, 0.9, 2.5, 1.15, 0.9, [[("L", 44, True, WHITE)]], align=PP_ALIGN.CENTER)
-text(s, 2.35, 2.15, 10, 1.4, [[("LOKI", 66, True, WHITE)]])
+text(s, 2.35, 2.15, 10, 1.4, [[("BUCKY", 66, True, WHITE)]])
 text(s, 2.42, 3.55, 10.4, 0.7,
      [[("Human-in-the-loop ticket automation", 22, True, RGBColor(0xDC, 0xDC, 0xE2))]])
 text(s, 2.42, 4.35, 9.8, 0.9,
@@ -157,7 +157,7 @@ text(s, 2.42, 6.35, 10, 0.4,
         INK3)]])
 
 # ===========================================================================
-# 2 — THE PROBLEM
+# 2 â€” THE PROBLEM
 # ===========================================================================
 s = slide()
 header(s, "1", "The problem", "A service desk drowns in tickets that are the same request, solved the same way.")
@@ -182,12 +182,12 @@ text(s, 8.4, 2.75, 4.35, 0.9, [
 ], align=PP_ALIGN.CENTER, space_after=1)
 
 # ===========================================================================
-# 3 — WHAT LOKI IS
+# 3 â€” WHAT BUCKY IS
 # ===========================================================================
 s = slide()
-header(s, "2", "What LOKI is", "A governed automation platform - a web app, not a script.")
+header(s, "2", "What BUCKY is", "A governed automation platform - a web app, not a script.")
 text(s, 0.6, 1.45, 12.1, 1.0, [
-    [("LOKI turns repeatable resolutions into structured procedures, matches "
+    [("BUCKY turns repeatable resolutions into structured procedures, matches "
       "incoming tickets to them, and runs them under human control. The core "
       "promise:", 14, False, INK2)],
 ], line_spacing=1.15)
@@ -208,7 +208,7 @@ text(s, 0.6, 5.55, 12.1, 1.0, [
 ], line_spacing=1.15)
 
 # ===========================================================================
-# 4 — THE THREE SYSTEMS
+# 4 â€” THE THREE SYSTEMS
 # ===========================================================================
 s = slide()
 header(s, "3", "The three systems", "Discovery finds the work, Procedures codify it, the Task overlay runs it safely.")
@@ -228,7 +228,7 @@ text(s, 4.9, y + 0.55, 3.5, 2.4, [
 card(s, 8.84, y, 3.9, 3.1, "SYSTEM 3", "", tone=OK, fill=GREENBG, title_size=13)
 text(s, 9.02, y + 0.55, 3.55, 2.4, [
     [("Task overlay", 16, True, INK)],
-    [("The heart of LOKI. Adds per-step risk, human approval, resumable runs, an "
+    [("The heart of BUCKY. Adds per-step risk, human approval, resumable runs, an "
       "audit trail, live intake, and sign-in.", 11.5, False, INK2)],
 ], line_spacing=1.12)
 arrow_right(s, 4.47, y + 1.4, 0.24, INK3)
@@ -239,7 +239,7 @@ text(s, 0.6, 5.3, 12.1, 0.8, [
 ], line_spacing=1.15)
 
 # ===========================================================================
-# 5 — HOW A TICKET FLOWS
+# 5 â€” HOW A TICKET FLOWS
 # ===========================================================================
 s = slide()
 header(s, "4", "How a ticket flows through", "Control bounces between agent and human - one step at a time.")
@@ -272,7 +272,7 @@ card(s, 0.6, 5.45, 12.15, 1.15, "Every action is bound and audited",
      tone=ACCENT, fill=BLUEBG)
 
 # ===========================================================================
-# 6 — THE RISK MODEL / WHO DOES WHAT
+# 6 â€” THE RISK MODEL / WHO DOES WHAT
 # ===========================================================================
 s = slide()
 header(s, "5", "The risk model - who does the job", "Default-deny: anything not proven safe stays with a human.")
@@ -300,7 +300,7 @@ text(s, 0.6, 5.5, 12.15, 1.1, [
 ], line_spacing=1.15)
 
 # ===========================================================================
-# 7 — EXECUTION & CONNECTORS
+# 7 â€” EXECUTION & CONNECTORS
 # ===========================================================================
 s = slide()
 header(s, "6", "Execution and connectors", "How an approved step becomes real work - the plan, and today's reality.")
@@ -333,7 +333,7 @@ text(s, 0.6, 5.6, 12.15, 1.0, [
 ], line_spacing=1.15)
 
 # ===========================================================================
-# 8 — BUSINESS VALUE (volume)
+# 8 â€” BUSINESS VALUE (volume)
 # ===========================================================================
 s = slide()
 header(s, "7", "Business value", "The payoff is the repetitive majority - and the data ranks it for us.")
@@ -368,7 +368,7 @@ text(s, 0.6, 5.75, 6.0, 0.9, [
 ], line_spacing=1.1)
 
 # ===========================================================================
-# 9 — PROVEN: THE LIVE DEMO
+# 9 â€” PROVEN: THE LIVE DEMO
 # ===========================================================================
 s = slide()
 header(s, "8", "Proven end to end (demo)", "We ran it: propose -> approve -> execute, with a full audit trail.")
@@ -402,7 +402,7 @@ text(s, 0.6, 5.6, 12.1, 1.0, [
 ], line_spacing=1.15)
 
 # ===========================================================================
-# 10 — CURRENT STATE & ROADMAP
+# 10 â€” CURRENT STATE & ROADMAP
 # ===========================================================================
 s = slide()
 header(s, "9", "Current state and roadmap", "Honest about what is real, what is simulated, and what comes next.")
@@ -435,11 +435,11 @@ for t, d, tone, fill in road:
     x += w + 0.06
 
 # ===========================================================================
-# 11 — CLOSING / SUMMARY
+# 11 â€” CLOSING / SUMMARY
 # ===========================================================================
 s = slide()
 bg(s, INK)
-text(s, 0.9, 1.5, 11.5, 1.0, [[("Why LOKI makes sense", 34, True, WHITE)]])
+text(s, 0.9, 1.5, 11.5, 1.0, [[("Why BUCKY makes sense", 34, True, WHITE)]])
 rect(s, 0.95, 2.5, 1.4, 0.06, fill=ACCENT)
 text(s, 0.95, 2.85, 11.4, 3.0, [
     [("It is a governed automation platform for the repetitive majority of "
@@ -448,7 +448,7 @@ text(s, 0.95, 2.85, 11.4, 3.0, [
     [("", 8, False, WHITE)],
     [("The hard, security-reviewable chassis already works. Most automation "
       "projects get flashy execution running and never survive the security "
-      "review. LOKI did it the other way round.", 16, False, RGBColor(0xDC,0xDC,0xE2))],
+      "review. BUCKY did it the other way round.", 16, False, RGBColor(0xDC,0xDC,0xE2))],
 ], line_spacing=1.2, space_after=10)
 text(s, 0.95, 5.7, 11.4, 0.8, [
     [("It becomes genuinely useful the moment two things happen: procedures for "
@@ -459,7 +459,7 @@ text(s, 0.95, 5.7, 11.4, 0.8, [
 # ---- speaker notes (travel with the file, shown in Presenter View) --------
 NOTES = [
     # 1 cover
-    "Opening: LOKI is human-in-the-loop ticket automation. The one line to "
+    "Opening: BUCKY is human-in-the-loop ticket automation. The one line to "
     "remember - the agent is granted work one step at a time, never a whole "
     "ticket. Execution is simulated today; the governance around it is real.",
     # 2 problem
@@ -467,15 +467,15 @@ NOTES = [
     "same way. It's slow, inconsistent, and expensive - but too routine to need "
     "human judgement on every step. The 1,313 stat is from our own discovery "
     "data: one request type, 1,313 times.",
-    # 3 what loki is
-    "LOKI is a web app, not a script: a FastAPI server that holds all logic, a "
+    # 3 what bucky is
+    "BUCKY is a web app, not a script: a FastAPI server that holds all logic, a "
     "React UI that holds none, and a SQLite store for runs and audit. Be explicit: "
     "there is NO LLM. The 'agent' is a deterministic rules engine - matching is "
     "keyword scoring, risk is a lookup table. That's what makes it reviewable.",
     # 4 three systems
     "Three systems in a line. System 1 Discovery mines history to find repetitive "
     "work. System 2 Procedures is the rulebook that matches a ticket. System 3, the "
-    "Task overlay, is the heart of LOKI - risk, approval, resumable runs, audit.",
+    "Task overlay, is the heart of BUCKY - risk, approval, resumable runs, audit.",
     # 5 flow
     "Walk the six stages: intake, match, plan, approve, execute, hand off. The key "
     "idea is the resume loop - a run is stored and derived from its steps, so it "
@@ -509,9 +509,9 @@ NOTES = [
     "low-risk connector behind execute_step(), then broaden connectors lowest-risk "
     "first. Each with security review.",
     # 11 closing
-    "Close on the value judgement: LOKI is a governed platform for repetitive work "
+    "Close on the value judgement: BUCKY is a governed platform for repetitive work "
     "with a human in control of risk. The hard, review-passing chassis already "
-    "works - most projects get execution flashy and fail the security review; LOKI "
+    "works - most projects get execution flashy and fail the security review; BUCKY "
     "did it the other way. It becomes useful with top-task procedures + one "
     "connector.",
 ]
@@ -521,6 +521,6 @@ for sl, note in zip(prs.slides, NOTES):
 from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
-out = str(_root / "output" / "LOKI_Project_Overview.pptx")
+out = str(_root / "output" / "BUCKY_Project_Overview.pptx")
 prs.save(out)
 print("wrote", out, "-", len(prs.slides._sldIdLst), "slides with notes")

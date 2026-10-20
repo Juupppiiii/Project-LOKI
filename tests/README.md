@@ -1,4 +1,4 @@
-# LOKI test suite
+# BUCKY test suite
 
 Automated tests across every layer. External systems (ServiceNow, Active
 Directory, AWS, PostgreSQL) are mocked or auto-skipped, so the default run needs
@@ -39,12 +39,12 @@ python -m pytest tests/test_migration.py
 
 ## PostgreSQL layers
 
-Set a throwaway database DSN, then run again — the skipped tests execute and
+Set a throwaway database DSN, then run again â€” the skipped tests execute and
 cover the concurrent backend, the full SQLite->PostgreSQL migration, and the
 high-contention execution-claim race:
 
 ```powershell
-$env:LOKI_TEST_POSTGRES_DSN = "postgresql://user:pass@localhost:5432/loki_test"
+$env:BUCKY_TEST_POSTGRES_DSN = "postgresql://user:pass@localhost:5432/bucky_test"
 python -m pytest -m repository
 python -m pytest -m migration
 python -m pytest -m concurrency
@@ -69,22 +69,22 @@ and an `/api/ready` health check.
 
 ## What each layer proves
 
-- **Unit** — versioned action resolution, default-deny risk, human-only
+- **Unit** â€” versioned action resolution, default-deny risk, human-only
   arbitrary/destructive actions.
-- **Coordination** — one lease owner at a time, fencing-token progression,
+- **Coordination** â€” one lease owner at a time, fencing-token progression,
   monotonic registry revision across connections.
-- **Repository** — run/approval/audit/execution/dictionary round-trips, source
+- **Repository** â€” run/approval/audit/execution/dictionary round-trips, source
   cascade, readiness, and SQLite/PostgreSQL parity.
-- **Migration** — deterministic inventory and checksums; full copy+verify on
+- **Migration** â€” deterministic inventory and checksums; full copy+verify on
   PostgreSQL.
-- **Connector contract** — the default-deny checks every connector must pass:
+- **Connector contract** â€” the default-deny checks every connector must pass:
   approval binding, catalogue match, idempotency key, resolved parameters,
   simulation-only mode.
-- **Integration** — propose -> approve -> execute -> audit, digest invalidation,
+- **Integration** â€” propose -> approve -> execute -> audit, digest invalidation,
   refusal without approval, duplicate-run and double-execution prevention.
-- **Concurrency** — exactly-once execution claims and single-poller leadership
+- **Concurrency** â€” exactly-once execution claims and single-poller leadership
   with failover.
-- **CDK** — the service deployment gate is off by default and correct when on.
+- **CDK** â€” the service deployment gate is off by default and correct when on.
 
 ## Still requires real environments (not covered here)
 

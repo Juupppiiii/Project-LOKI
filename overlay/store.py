@@ -223,6 +223,49 @@ CREATE INDEX IF NOT EXISTS idx_exec_run ON action_executions(run_id);
 CREATE INDEX IF NOT EXISTS idx_exec_step ON action_executions(step_id);
 CREATE INDEX IF NOT EXISTS idx_exec_status ON action_executions(status);
 
+-- Recommendation feedback. Reviewed human outcomes are deliberately stored
+-- separately from raw closure notes: explicit engineer validation is the
+-- higher-quality signal used to evaluate and improve recommendations.
+CREATE TABLE IF NOT EXISTS recommendation_feedback (
+    feedback_id       TEXT PRIMARY KEY,
+    ticket_ref        TEXT NOT NULL,
+    live_id           TEXT,
+    procedure_id      TEXT,
+    verdict           TEXT NOT NULL,
+    created_by        TEXT NOT NULL,
+    created_at        TEXT NOT NULL,
+    document          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_ticket
+    ON recommendation_feedback(ticket_ref);
+CREATE INDEX IF NOT EXISTS idx_feedback_procedure
+    ON recommendation_feedback(procedure_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_verdict
+    ON recommendation_feedback(verdict);
+
+-- Tier A triage-agent runs: a read-only, bounded investigation of a matched
+-- monitoring ticket. Stored separately from remediation `runs` because a triage
+-- run executes NOTHING -- it gathers evidence and drafts a recommendation a
+-- human approves. The full tool transcript lives in `document`.
+CREATE TABLE IF NOT EXISTS triage_runs (
+    triage_id       TEXT PRIMARY KEY,
+    live_id         TEXT,
+    ticket_ref      TEXT NOT NULL,
+    host            TEXT,
+    alert_kind      TEXT,
+    classification  TEXT NOT NULL,
+    routed_to_human INTEGER NOT NULL DEFAULT 0,
+    simulated       INTEGER NOT NULL DEFAULT 1,
+    created_by      TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    document        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_triage_live ON triage_runs(live_id);
+CREATE INDEX IF NOT EXISTS idx_triage_ticket ON triage_runs(ticket_ref);
+CREATE INDEX IF NOT EXISTS idx_triage_class ON triage_runs(classification);
+
 -- Cross-process cache invalidation and singleton work leadership.
 CREATE TABLE IF NOT EXISTS cache_revisions (
     name      TEXT PRIMARY KEY,
@@ -289,6 +332,7 @@ def _step_from_dict(d: dict[str, Any]) -> StepRun:
         completed_by=d.get("completed_by"),
         completed_at=d.get("completed_at"),
         risk_reason=d.get("risk_reason", ""),
+        rollback=d.get("rollback", ""),
     )
 
 
@@ -327,10 +371,10 @@ def _run_from_document(doc: dict[str, Any]) -> TaskRun:
 
 
 class Store:
-    """SQLite implementation of the LOKI repository contract."""
+    """SQLite implementation of the BUCKY repository contract."""
 
     backend = "sqlite"
-    schema_version = 3
+    schema_version = 5
 
     def __init__(self, path: str | Path = "overlay_tasks.db") -> None:
         self.path = str(path)
@@ -1396,3 +1440,108 @@ class Store:
             ).rowcount
             self._conn.commit()
         return n > 0
+
+    # -- recommendation feedback ----------------------------------------
+
+    def save_recommendation_feedback(self, feedback: dict[str, Any]) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO recommendation_feedback (
+                    feedback_id, ticket_ref, live_id, procedure_id, verdict,
+                    created_by, created_at, document
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    feedback["feedback_id"],
+                    feedback["ticket_ref"],
+                    feedback.get("live_id") or None,
+                    feedback.get("procedure_id") or None,
+                    feedback["verdict"],
+                    feedback["created_by"],
+                    feedback["created_at"],
+                    json.dumps(feedback, default=str),
+                ),
+            )
+            self._conn.commit()
+
+    def list_recommendation_feedback(
+        self,
+        ticket_ref: str | None = None,
+        procedure_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT document FROM recommendation_feedback"
+        clauses: list[str] = []
+        args: list[Any] = []
+        if ticket_ref:
+            clauses.append("ticket_ref = ?")
+            args.append(ticket_ref)
+        if procedure_id:
+            clauses.append("procedure_id = ?")
+            args.append(procedure_id)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        args.append(max(1, min(500, int(limit))))
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+        return [json.loads(row["document"]) for row in rows]
+
+    # -- triage runs ----------------------------------------------------
+
+    def save_triage_run(self, triage: dict[str, Any]) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO triage_runs (
+                    triage_id, live_id, ticket_ref, host, alert_kind,
+                    classification, routed_to_human, simulated,
+                    created_by, created_at, document
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    triage["triage_id"],
+                    triage.get("live_id") or None,
+                    triage["ticket_ref"],
+                    triage.get("host") or None,
+                    triage.get("alert_kind") or None,
+                    triage["classification"],
+                    1 if triage.get("routed_to_human") else 0,
+                    1 if triage.get("simulated") else 0,
+                    triage["created_by"],
+                    triage["created_at"],
+                    json.dumps(triage, default=str),
+                ),
+            )
+            self._conn.commit()
+
+    def get_triage_run(self, triage_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT document FROM triage_runs WHERE triage_id = ?", (triage_id,)
+            ).fetchone()
+        return json.loads(row["document"]) if row else None
+
+    def list_triage_runs(
+        self,
+        live_id: str | None = None,
+        ticket_ref: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT document FROM triage_runs"
+        clauses: list[str] = []
+        args: list[Any] = []
+        if live_id:
+            clauses.append("live_id = ?")
+            args.append(live_id)
+        if ticket_ref:
+            clauses.append("ticket_ref = ?")
+            args.append(ticket_ref)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        args.append(max(1, min(500, int(limit))))
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+        return [json.loads(row["document"]) for row in rows]

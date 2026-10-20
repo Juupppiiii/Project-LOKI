@@ -54,7 +54,7 @@ def test_simulation_run_cannot_execute_against_live_only(service, restart_ticket
 
 
 def test_same_actor_cannot_approve_and_trigger(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "1")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "1")
     run = service.propose(restart_ticket, actor="alice")
     chunk = _agent_chunk(run)
     service.decide_chunk(run.run_id, chunk.chunk_id, decision="approved", actor="carol")
@@ -66,7 +66,7 @@ def test_same_actor_cannot_approve_and_trigger(service, restart_ticket, monkeypa
 
 
 def test_different_actor_can_trigger(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "1")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "1")
     run = service.propose(restart_ticket, actor="alice")
     chunk = _agent_chunk(run)
     service.decide_chunk(run.run_id, chunk.chunk_id, decision="approved", actor="carol")
@@ -76,7 +76,7 @@ def test_different_actor_can_trigger(service, restart_ticket, monkeypatch):
 
 
 def test_sod_can_be_disabled(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "0")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "0")
     run = service.propose(restart_ticket, actor="alice")
     chunk = _agent_chunk(run)
     service.decide_chunk(run.run_id, chunk.chunk_id, decision="approved", actor="carol")
@@ -92,8 +92,8 @@ def test_sod_can_be_disabled(service, restart_ticket, monkeypatch):
 
 
 def test_expired_approval_is_refused(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_APPROVAL_TTL_SECONDS", "3600")
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "0")
+    monkeypatch.setenv("BUCKY_APPROVAL_TTL_SECONDS", "3600")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "0")
     run = service.propose(restart_ticket, actor="alice")
     chunk = _agent_chunk(run)
     service.decide_chunk(run.run_id, chunk.chunk_id, decision="approved", actor="alice")
@@ -111,8 +111,8 @@ def test_expired_approval_is_refused(service, restart_ticket, monkeypatch):
 
 
 def test_fresh_approval_within_ttl_executes(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_APPROVAL_TTL_SECONDS", "3600")
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "0")
+    monkeypatch.setenv("BUCKY_APPROVAL_TTL_SECONDS", "3600")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "0")
     run = service.propose(restart_ticket, actor="alice")
     chunk = _agent_chunk(run)
     service.decide_chunk(run.run_id, chunk.chunk_id, decision="approved", actor="alice")

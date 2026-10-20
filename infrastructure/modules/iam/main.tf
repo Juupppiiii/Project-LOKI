@@ -135,3 +135,37 @@ resource "aws_iam_role_policy" "bedrock" {
     }]
   })
 }
+
+# Optional: let the API task role run the READ-ONLY diagnostic backend over SSM
+# Run Command. Scoped to the AWS-RunPowerShellScript document and the explicit
+# target instances only; the application layer additionally restricts this to a
+# fixed set of read-only PowerShell snippets. SendCommand is split from the
+# read-back calls so the document/instance scoping applies to the write-capable
+# verb, while the status reads are account-local and harmless.
+resource "aws_iam_role_policy" "ssm_diagnostics" {
+  count = var.enable_ssm_diagnostics ? 1 : 0
+
+  name = "ssm-readonly-diagnostics"
+  role = aws_iam_role.api_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendReadOnlyPowerShell"
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = concat(
+          var.ssm_diagnostic_instance_arns,
+          ["arn:aws:ssm:*::document/AWS-RunPowerShellScript"],
+        )
+      },
+      {
+        Sid      = "ReadCommandResults"
+        Effect   = "Allow"
+        Action   = ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations"]
+        Resource = "*"
+      },
+    ]
+  })
+}

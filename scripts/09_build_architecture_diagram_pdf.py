@@ -1,4 +1,4 @@
-"""Generate a visual LOKI architecture DIAGRAM as a PDF.
+"""Generate a visual BUCKY architecture DIAGRAM as a PDF.
 
 Boxes-and-arrows drawings (not prose): a layered component stack, the
 ticket data-flow pipeline, and the client/server trust boundary. Pure
@@ -59,7 +59,7 @@ class Doc(FPDF):
         self.set_text_color(*INK3)
         third = CONTENT_W / 3
         self.set_xy(MARGIN, -11)
-        self.cell(third, 4, "LOKI - System Architecture (diagram)", align="L")
+        self.cell(third, 4, "BUCKY - System Architecture (diagram)", align="L")
         self.set_xy(MARGIN + third, -11)
         self.cell(third, 4, "Simulation only - no live execution", align="C")
         self.set_xy(MARGIN + 2 * third, -11)
@@ -148,7 +148,7 @@ pdf.rect(0, 0, PAGE_W, PAGE_H, style="F")
 pdf.set_fill_color(*ACCENT)
 pdf.rect(MARGIN + 4, 66, 22, 22, style="F")
 text_at(pdf, MARGIN + 4, 73.5, "L", size=26, style="B", color=WHITE, align="C", w=22)
-text_at(pdf, MARGIN + 32, 66, "LOKI", size=46, style="B", color=WHITE)
+text_at(pdf, MARGIN + 32, 66, "BUCKY", size=46, style="B", color=WHITE)
 text_at(pdf, MARGIN + 33, 92, "System Architecture - Diagrams", size=16, style="B",
         color=(220, 220, 226))
 wrapped(pdf, MARGIN + 33, 102, 200,
@@ -608,7 +608,7 @@ box(pdf, MARGIN, ey, CONTENT_W, 11,
 # PAGE 6 - BUSINESS VALUE + HOW TO TEST IT
 # ===========================================================================
 pdf.add_page()
-page_title(pdf, "6", "Why LOKI is valuable - and how to prove it",
+page_title(pdf, "6", "Why BUCKY is valuable - and how to prove it",
            "The value is governed, audited automation of the repetitive majority of tickets. Numbers below are from this project's own "
            "discovery data (automation_candidates.csv); the agent/human split is enforced by risk.py.")
 
@@ -695,6 +695,6 @@ for i, (h, d) in enumerate(steps_test):
 from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
-out = str(_root / "output" / "LOKI_Architecture_Diagram.pdf")
+out = str(_root / "output" / "BUCKY_Architecture_Diagram.pdf")
 pdf.output(out)
 print("wrote", out)

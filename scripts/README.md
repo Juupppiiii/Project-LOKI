@@ -20,8 +20,8 @@ python scripts/01_pull_closed_incidents.py --limit 5000
 
 | # | Script | What it does |
 |---|---|---|
-| 06 | `06_demo_agent_run.py` | Drive propose → approve → execute → audit end-to-end in simulation |
-| — | `migrate_sqlite_to_postgres.py` | Migrate local SQLite data to PostgreSQL (dry-run by default) |
+| 06 | `06_demo_agent_run.py` | Drive propose â†’ approve â†’ execute â†’ audit end-to-end in simulation |
+| â€” | `migrate_sqlite_to_postgres.py` | Migrate local SQLite data to PostgreSQL (dry-run by default) |
 
 ## Documentation builders
 
@@ -37,5 +37,5 @@ python scripts/01_pull_closed_incidents.py --limit 5000
   so they work from any working directory.
 - `migrate_sqlite_to_postgres.py` keeps its flat name because it is imported
   by `tests/test_migration.py` and must be a valid Python module name.
-- The knowledge-building pipeline runs 01 → 02 → 03 → 04 in order. Step 04
-  requires a live Bedrock model (`LOKI_LLM_ENABLED=1` + AWS creds).
+- The knowledge-building pipeline runs 01 â†’ 02 â†’ 03 â†’ 04 in order. Step 04
+  requires a live Bedrock model (`BUCKY_LLM_ENABLED=1` + AWS creds).

@@ -1,7 +1,7 @@
 """Postcondition verification for executed steps.
 
 The execution boundary's job does not end when a connector reports success. A
-connector saying "service restarted" is a *claim*; LOKI must confirm the world
+connector saying "service restarted" is a *claim*; BUCKY must confirm the world
 actually reached the desired state before it treats the step as done and moves
 on. This module is that confirmation seam.
 

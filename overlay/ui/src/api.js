@@ -11,7 +11,7 @@
 const BASE = typeof window !== "undefined" ? window.OVERLAY_API_BASE || "" : "";
 
 /** Who is acting. Set from the UI; a real deployment replaces this with SSO. */
-let actor = "dev@loki.local";
+let actor = "dev@bucky.local";
 export const setActor = (v) => {
   actor = v?.trim() || "unknown";
 };
@@ -116,8 +116,34 @@ export const api = {
   /* -- intelligence (advisory, authorises nothing) -- */
   suggest: (ticket, top = 3) =>
     request(`/suggest?top=${top}`, { method: "POST", body: ticket }),
+  recommendCandidates: (ticket, top = 5) =>
+    request(`/recommend-candidates?top=${top}`, { method: "POST", body: ticket }),
   recommendSteps: (ticket) =>
     request("/recommend-steps", { method: "POST", body: ticket }),
+  resolutionClusters: (ticket, top = 25) =>
+    request(`/resolution-clusters?top=${top}`, { method: "POST", body: ticket }),
+  diagnosticCatalog: () => request("/diagnostics/catalog"),
+  runDiagnostic: (operationId, parameters, ticketRef = "") =>
+    request("/diagnostics/run", {
+      method: "POST",
+      body: { operation_id: operationId, parameters, ticket_ref: ticketRef },
+    }),
+  evidencePack: (liveId, includeOpus = false) =>
+    request(
+      `/live/tickets/${liveId}/evidence-pack${includeOpus ? "?include_opus=true" : ""}`
+    ),
+  runTriage: (liveId) =>
+    request(`/live/tickets/${liveId}/triage`, { method: "POST" }),
+  listTriage: (liveId) => request(`/live/tickets/${liveId}/triage`),
+  recommendationFeedback: (filters = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(filters).filter(([, value]) => value !== "" && value != null)
+    );
+    return request(`/recommendation-feedback${query.size ? `?${query}` : ""}`);
+  },
+  feedbackSummary: () => request("/recommendation-feedback-summary"),
+  saveRecommendationFeedback: (body) =>
+    request("/recommendation-feedback", { method: "POST", body }),
   efficiencyAdvice: (runId) => request(`/runs/${runId}/efficiency-advice`),
 
   /* -- knowledge -- */

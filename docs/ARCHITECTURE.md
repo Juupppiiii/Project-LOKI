@@ -1,19 +1,19 @@
-# LOKI — Architecture
+# BUCKY â€” Architecture
 
 _Last updated: 2026-10-06_
 
-LOKI is a **human-in-the-loop ticket-automation platform**. It pulls real
+BUCKY is a **human-in-the-loop ticket-automation platform**. It pulls real
 ServiceNow tickets, matches them to codified procedures, and runs a governed
-**propose → approve → execute → audit** lifecycle in which the agent only ever
+**propose â†’ approve â†’ execute â†’ audit** lifecycle in which the agent only ever
 performs bounded, approved, low-risk steps and a human owns everything
 irreversible.
 
 This document describes what exists today. It is explicit about three states:
 
-- ✅ **Real & tested** — built, covered by the test suite, exercised.
-- 🟡 **Built but dormant** — code exists and is tested, but off by default and
+- âœ… **Real & tested** â€” built, covered by the test suite, exercised.
+- ðŸŸ¡ **Built but dormant** â€” code exists and is tested, but off by default and
   not yet exercised against a real external system.
-- 🔴 **Scaffolded, not deployed** — written (e.g. CDK) but nothing is live.
+- ðŸ”´ **Scaffolded, not deployed** â€” written (e.g. CDK) but nothing is live.
 
 ---
 
@@ -27,27 +27,27 @@ thing. Every control below exists to keep that promise.
 
 ## The three systems
 
-### System 1 — Discovery (`src/`, offline) ✅
+### System 1 â€” Discovery (`src/`, offline) âœ…
 Pulls ServiceNow exports into DuckDB and scores which repetitive work is worth
 automating. Read-only, offline analytics. Operational scripts live in
 `scripts/`:
-- `pull_closed_incidents.py` — fetch closed incidents with resolution content.
-- `mine_resolutions.py` — cluster substantive resolutions into candidate
+- `pull_closed_incidents.py` â€” fetch closed incidents with resolution content.
+- `mine_resolutions.py` â€” cluster substantive resolutions into candidate
   procedures (`--exclude-group` to drop noisy auto-ack feeds).
 
 Finding of record: of 5,000 closed incidents, ~10% carried a substantive
 resolution; the realistic yield is a handful of codifiable procedures, not
 thousands.
 
-### System 2 — Procedure engine (`system2/`) ✅
+### System 2 â€” Procedure engine (`system2/`) âœ…
 The domain-agnostic rulebook. Matches a ticket to a procedure (keyword scoring)
 and renders/simulates its steps. Knowledge lives in `procedures.json`.
-- `engine.py` — keyword match + parameter extraction (hostname, instance_id,
+- `engine.py` â€” keyword match + parameter extraction (hostname, instance_id,
   queue_name, service, username) from alert text.
-- `executor.py` — render / simulate. Live execution is hard-disabled here.
+- `executor.py` â€” render / simulate. Live execution is hard-disabled here.
 
-### System 3 — Task overlay (`overlay/`) — the governed runtime ✅
-The FastAPI service + React UI that runs the lifecycle. This is "LOKI".
+### System 3 â€” Task overlay (`overlay/`) â€” the governed runtime âœ…
+The FastAPI service + React UI that runs the lifecycle. This is "BUCKY".
 
 ---
 
@@ -55,45 +55,45 @@ The FastAPI service + React UI that runs the lifecycle. This is "LOKI".
 
 | Module | Role | State |
 |---|---|---|
-| `api.py` | FastAPI transport; the only contract clients speak | ✅ |
-| `service.py` | Application authority — every policy decision | ✅ |
-| `domain.py` | Pure model: runs, steps, chunks, approvals, audit | ✅ |
-| `risk.py` | Default-deny risk classification (R0–RX) | ✅ |
-| `planner.py` | Ticket + procedure → approvable plan + binding digest | ✅ |
-| `store.py` / `postgres_store.py` | Repository: runs, approvals, idempotency ledger, audit | ✅ (SQLite); 🟡 (Postgres) |
-| `action_catalog.py` | Immutable, versioned action allowlist | ✅ |
-| `connectors.py` | Approval-bound envelope + result contract | ✅ |
-| `action_gateway.py` | Default-deny dispatch; simulation + scoped live mode | ✅ |
-| `connectors_servicenow.py` | First real connector (work notes) | 🟡 dormant |
-| `efficiency.py` | Advisory resolution-time + automatability ranking | ✅ |
-| `semantic_engine.py` | Advisory meaning-based matching | ✅ |
-| `knowledge_base.py` | Retrieval of solved-ticket grounding (RAG) | ✅ |
-| `knowledge_llm.py` | LLM backend seam (Bedrock + offline echo) | ✅ |
-| `auth.py` | Entra OIDC token verification + sessions | ✅ (enforcement off by default) |
-| `live.py` | Read-only ServiceNow polling | ✅ |
-| `worker.py` + `worker_*.py` | Background SQS→execute→Step Functions worker | 🟡 built, not default path |
-| `ui/` | React app (Queue / Knowledge / Live + advisory panels) | ✅ |
+| `api.py` | FastAPI transport; the only contract clients speak | âœ… |
+| `service.py` | Application authority â€” every policy decision | âœ… |
+| `domain.py` | Pure model: runs, steps, chunks, approvals, audit | âœ… |
+| `risk.py` | Default-deny risk classification (R0â€“RX) | âœ… |
+| `planner.py` | Ticket + procedure â†’ approvable plan + binding digest | âœ… |
+| `store.py` / `postgres_store.py` | Repository: runs, approvals, idempotency ledger, audit | âœ… (SQLite); ðŸŸ¡ (Postgres) |
+| `action_catalog.py` | Immutable, versioned action allowlist | âœ… |
+| `connectors.py` | Approval-bound envelope + result contract | âœ… |
+| `action_gateway.py` | Default-deny dispatch; simulation + scoped live mode | âœ… |
+| `connectors_servicenow.py` | First real connector (work notes) | ðŸŸ¡ dormant |
+| `efficiency.py` | Advisory resolution-time + automatability ranking | âœ… |
+| `semantic_engine.py` | Advisory meaning-based matching | âœ… |
+| `knowledge_base.py` | Retrieval of solved-ticket grounding (RAG) | âœ… |
+| `knowledge_llm.py` | LLM backend seam (Bedrock + offline echo) | âœ… |
+| `auth.py` | Entra OIDC token verification + sessions | âœ… (enforcement off by default) |
+| `live.py` | Read-only ServiceNow polling | âœ… |
+| `worker.py` + `worker_*.py` | Background SQSâ†’executeâ†’Step Functions worker | ðŸŸ¡ built, not default path |
+| `ui/` | React app (Queue / Knowledge / Live + advisory panels) | âœ… |
 
 ---
 
 ## The request lifecycle
 
 ```
-ticket ──► service.propose ──► planner.build_plan ──► store (run, state=awaiting_approval)
-                                   │
-                                   ├─ risk.classify every step (default-deny)
-                                   └─ group into approval chunks + binding digest
+ticket â”€â”€â–º service.propose â”€â”€â–º planner.build_plan â”€â”€â–º store (run, state=awaiting_approval)
+                                   â”‚
+                                   â”œâ”€ risk.classify every step (default-deny)
+                                   â””â”€ group into approval chunks + binding digest
 
-human ──► service.decide_chunk (approve) ──► store (Approval, bound to a digest)
+human â”€â”€â–º service.decide_chunk (approve) â”€â”€â–º store (Approval, bound to a digest)
 
-human ──► service.execute_chunk ──► guards: active approval? digest match? in order?
+human â”€â”€â–º service.execute_chunk â”€â”€â–º guards: active approval? digest match? in order?
                                               separation of duties? not expired?
-                                   │
-                                   ├─ build_envelope (idempotency key)
-                                   ├─ store.claim_action_execution (claim-before-dispatch)
-                                   └─ action_gateway.dispatch ──► connector (simulation|live)
-                                              │
-                                              └─ store.complete/fail + audit event
+                                   â”‚
+                                   â”œâ”€ build_envelope (idempotency key)
+                                   â”œâ”€ store.claim_action_execution (claim-before-dispatch)
+                                   â””â”€ action_gateway.dispatch â”€â”€â–º connector (simulation|live)
+                                              â”‚
+                                              â””â”€ store.complete/fail + audit event
 ```
 
 Every transition writes an **append-only audit event** distinguishing
@@ -116,8 +116,8 @@ Every transition writes an **append-only audit event** distinguishing
 - **Idempotency.** A durable key is claimed before dispatch; a redelivered or
   replayed execution returns the stored outcome instead of running twice.
 - **Separation of duties.** The approver of a chunk cannot also trigger it
-  (`LOKI_ENFORCE_SOD`, on by default).
-- **Approval expiry.** Stale approvals are refused (`LOKI_APPROVAL_TTL_SECONDS`).
+  (`BUCKY_ENFORCE_SOD`, on by default).
+- **Approval expiry.** Stale approvals are refused (`BUCKY_APPROVAL_TTL_SECONDS`).
 - **Simulation is the floor.** The gateway refuses to construct in any mode but
   `simulation` unless `live` is deliberately selected, and a real connector
   still needs an allowlisted binding plus its own write switch.
@@ -140,49 +140,49 @@ pick; a human stays the approver.
 ### LLM knowledge base (RAG)
 
 ```
-ticket ──► knowledge_base retrieval (REAL grounding, no model)
-             ├─ sanctioned matched procedure
-             ├─ candidate procedures
-             └─ most similar SOLVED tickets (real close_notes/work_notes)
-                          │
-                          ▼
+ticket â”€â”€â–º knowledge_base retrieval (REAL grounding, no model)
+             â”œâ”€ sanctioned matched procedure
+             â”œâ”€ candidate procedures
+             â””â”€ most similar SOLVED tickets (real close_notes/work_notes)
+                          â”‚
+                          â–¼
              knowledge_llm backend (advisory)
-             ├─ BedrockBackend  → Claude via Converse API (model id = config)
-             └─ EchoBackend     → offline; returns grounding, no fabricated plan
-                          │
-                          ▼
-             cited, critiqued recommendation  ── a human reads it
+             â”œâ”€ BedrockBackend  â†’ Claude via Converse API (model id = config)
+             â””â”€ EchoBackend     â†’ offline; returns grounding, no fabricated plan
+                          â”‚
+                          â–¼
+             cited, critiqued recommendation  â”€â”€ a human reads it
 ```
 
 Retrieval is separated from synthesis so the grounding is inspectable and the
-model can never fabricate its evidence. Off by default (`LOKI_LLM_ENABLED=0`);
+model can never fabricate its evidence. Off by default (`BUCKY_LLM_ENABLED=0`);
 it never makes a paid/network call unprompted. Verified live against
 `eu.anthropic.claude-opus-5` in eu-west-1.
 
 ---
 
-## Cloud architecture (`infra/`, CDK) 🔴 not deployed
+## Cloud architecture (`infra/`, CDK) ðŸ”´ not deployed
 
-Three stacks: `Loki-dev-Network`, `Loki-dev-Data`, `Loki-dev-Platform`.
+Three stacks: `Bucky-dev-Network`, `Bucky-dev-Data`, `Bucky-dev-Platform`.
 
 ```
             internal ALB (TLS)
-                   │
-            ECS Fargate: API task  ──┐
-            ECS Fargate: worker task ─┤─► Aurora PostgreSQL (via RDS Proxy)
-                   │                  │
-            Step Functions ◄──► SQS queues (per connector)
-                   │
+                   â”‚
+            ECS Fargate: API task  â”€â”€â”
+            ECS Fargate: worker task â”€â”¤â”€â–º Aurora PostgreSQL (via RDS Proxy)
+                   â”‚                  â”‚
+            Step Functions â—„â”€â”€â–º SQS queues (per connector)
+                   â”‚
             Prometheus / Grafana / CloudWatch
 ```
 
 - Synthesizes cleanly; **nothing deployed**.
-- The application service is gated OFF (`loki:deployService=false`) and
+- The application service is gated OFF (`bucky:deployService=false`) and
   single-task until multi-write transactions + claim recovery are finished.
 - **Shared knowledge for every user** is inherent once deployed on the shared
   Aurora store (today it runs on per-machine SQLite).
 - Blocked by: a broken shared `CDKToolkit` bootstrap in the target account, and
-  the account/isolation decision — both org actions, not code.
+  the account/isolation decision â€” both org actions, not code.
 
 ---
 
@@ -190,23 +190,23 @@ Three stacks: `Loki-dev-Network`, `Loki-dev-Data`, `Loki-dev-Platform`.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LOKI_EXECUTION_MODE` | `simulation` | `simulation` or `live`; anything else fails at startup |
-| `LOKI_STORE_BACKEND` | `sqlite` | `sqlite` local, `postgres` production |
-| `LOKI_ENFORCE_AUTH` | `0` | Enforce Entra session on write routes |
-| `LOKI_ENFORCE_SOD` | `1` | Approver cannot also trigger |
-| `LOKI_APPROVAL_TTL_SECONDS` | `3600` | Approval expiry |
-| `LOKI_LLM_ENABLED` | `0` | Enable the Bedrock advisory model |
+| `BUCKY_EXECUTION_MODE` | `simulation` | `simulation` or `live`; anything else fails at startup |
+| `BUCKY_STORE_BACKEND` | `sqlite` | `sqlite` local, `postgres` production |
+| `BUCKY_ENFORCE_AUTH` | `0` | Enforce Entra session on write routes |
+| `BUCKY_ENFORCE_SOD` | `1` | Approver cannot also trigger |
+| `BUCKY_APPROVAL_TTL_SECONDS` | `3600` | Approval expiry |
+| `BUCKY_LLM_ENABLED` | `0` | Enable the Bedrock advisory model |
 | `BEDROCK_MODEL_ID` | `eu.anthropic.claude-opus-5` | Advisory model (inference profile id) |
-| `LOKI_SERVICENOW_WRITE_ENABLED` | `0` | Second switch for the real work-note connector |
+| `BUCKY_SERVICENOW_WRITE_ENABLED` | `0` | Second switch for the real work-note connector |
 
 ---
 
 ## Honest status line
 
-- **Functionally**: rich and tested — full lifecycle, governance, advisory AI
+- **Functionally**: rich and tested â€” full lifecycle, governance, advisory AI
   live against Opus 5.
 - **Operationally**: not yet deployed; auth enforcement off; running on SQLite
   locally; one real connector built but never run against a real system.
 - **The gap to company use** is operational scaffolding (deploy, enforced auth
   wired to Entra, a real connector against a sandbox, secrets management,
-  observability) — most of which needs organizational inputs, not more code.
+  observability) â€” most of which needs organizational inputs, not more code.

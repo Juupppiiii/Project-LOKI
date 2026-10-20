@@ -52,10 +52,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="LOKI API",
+    title="BUCKY API",
     version="0.2.0",
     description=(
-        "LOKI — human-in-the-loop ticket automation.\n\n"
+        "BUCKY â€” human-in-the-loop ticket automation.\n\n"
         "Ticket data may be read live from ServiceNow, but execution is "
         "simulation only: no connectors, no writes to any target system."
     ),
@@ -87,14 +87,14 @@ _sessions = auth.SessionManager()
 # When True, write endpoints require a signed-in session and the header actor is
 # ignored. Off by default so existing local use keeps working; the moment Entra
 # is configured or dev login is used, sessions drive identity.
-_ENFORCE = os.getenv("LOKI_ENFORCE_AUTH", "0") not in ("0", "false", "False", "")
+_ENFORCE = os.getenv("BUCKY_ENFORCE_AUTH", "0") not in ("0", "false", "False", "")
 
 
 def current_identity(
     request: Request,
-    loki_session: str | None = Cookie(default=None),
+    bucky_session: str | None = Cookie(default=None),
 ) -> "auth.Identity | None":
-    return _sessions.read(loki_session)
+    return _sessions.read(bucky_session)
 
 
 def require_actor(
@@ -318,6 +318,114 @@ def diagnostics_run(
         )
     except DomainError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class RecommendationFeedbackIn(BaseModel):
+    ticket_ref: str = Field(min_length=1, max_length=80)
+    live_id: str = Field(default="", max_length=80)
+    procedure_id: str = Field(default="", max_length=160)
+    verdict: str = Field(
+        pattern="^(accepted|partially_useful|rejected|insufficient_evidence)$"
+    )
+    useful_steps: list[str] = Field(default_factory=list, max_length=20)
+    wrong_steps: list[str] = Field(default_factory=list, max_length=20)
+    actual_resolution: str = Field(default="", max_length=4000)
+    notes: str = Field(default="", max_length=2000)
+    human_intervention: bool = False
+    time_saved_minutes: int | None = Field(default=None, ge=0, le=1440)
+    recurrence: bool | None = None
+
+
+@app.get("/api/live/tickets/{live_id}/evidence-pack")
+def live_ticket_evidence_pack(
+    live_id: str,
+    include_opus: bool = Query(False),
+    _actor: str = Depends(require_capability("view_investigation")),
+) -> dict[str, Any]:
+    """Build a provenance-separated evidence pack for one live ticket.
+
+    Opus is explicit and opt-in because it is advisory and incurs a model call.
+    The deterministic pack always works without it.
+    """
+
+    try:
+        return service.evidence_pack(live_id, include_opus=include_opus)
+    except DomainError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/live/tickets/{live_id}/triage", status_code=201)
+def run_live_ticket_triage(
+    live_id: str,
+    actor: str = Depends(require_capability("run_triage")),
+) -> dict[str, Any]:
+    """Run the Tier A READ-ONLY triage agent against one matched live ticket.
+
+    The agent gathers read-only evidence and drafts a recommendation; it
+    executes nothing and authorises nothing. A human reviews the verdict and
+    approves any disposition separately. Refused with 409 when the feature is
+    disabled or the ticket is unknown.
+    """
+
+    try:
+        return service.run_triage(live_id, actor=actor)
+    except DomainError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/live/tickets/{live_id}/triage")
+def list_live_ticket_triage(
+    live_id: str,
+    _actor: str = Depends(require_capability("view_investigation")),
+) -> dict[str, Any]:
+    """List prior triage runs for one live ticket (most recent first)."""
+
+    return {"triage_runs": service.list_triage_runs(live_id=live_id, limit=50)}
+
+
+@app.get("/api/triage/{triage_id}")
+def get_triage_run(
+    triage_id: str,
+    _actor: str = Depends(require_capability("view_investigation")),
+) -> dict[str, Any]:
+    """Fetch one triage run with its full read-only tool transcript."""
+
+    record = service.get_triage_run(triage_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"unknown triage run '{triage_id}'")
+    return record
+
+
+@app.post("/api/recommendation-feedback", status_code=201)
+def create_recommendation_feedback(
+    body: RecommendationFeedbackIn,
+    actor: str = Depends(require_capability("submit_recommendation_feedback")),
+) -> dict[str, Any]:
+    try:
+        return service.save_recommendation_feedback(body.model_dump(), actor=actor)
+    except DomainError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/recommendation-feedback")
+def recommendation_feedback(
+    ticket_ref: str | None = None,
+    procedure_id: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    _actor: str = Depends(require_capability("view_investigation")),
+) -> dict[str, Any]:
+    return {
+        "feedback": service.list_recommendation_feedback(
+            ticket_ref=ticket_ref, procedure_id=procedure_id, limit=limit
+        )
+    }
+
+
+@app.get("/api/recommendation-feedback-summary")
+def recommendation_feedback_summary(
+    _actor: str = Depends(require_capability("view_investigation")),
+) -> dict[str, Any]:
+    return service.recommendation_feedback_summary()
 
 
 @app.post("/api/recommend-steps")
@@ -1001,7 +1109,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         max_age=auth.SESSION_MAX_AGE,
         httponly=True,          # not readable by JS -> no XSS token theft
         samesite="lax",
-        secure=os.getenv("LOKI_COOKIE_SECURE", "0") not in ("0", "false", ""),
+        secure=os.getenv("BUCKY_COOKIE_SECURE", "0") not in ("0", "false", ""),
         path="/",
     )
 
@@ -1077,8 +1185,8 @@ def auth_login(response: Response) -> dict[str, Any]:
     # verify the round trip without server-side session storage.
     txn = _sessions._serializer.dumps({"state": state, "nonce": nonce})
     response.set_cookie(
-        "loki_auth_txn", txn, max_age=600, httponly=True, samesite="lax",
-        secure=os.getenv("LOKI_COOKIE_SECURE", "0") not in ("0", "false", ""),
+        "bucky_auth_txn", txn, max_age=600, httponly=True, samesite="lax",
+        secure=os.getenv("BUCKY_COOKIE_SECURE", "0") not in ("0", "false", ""),
         path="/",
     )
     return {"authorize_url": cfg.authorize_url(state, nonce)}
@@ -1089,7 +1197,7 @@ def auth_callback(
     code: str,
     state: str,
     response: Response,
-    loki_auth_txn: str | None = Cookie(default=None),
+    bucky_auth_txn: str | None = Cookie(default=None),
 ) -> Any:
     """Entra redirects here with a code. Exchange it and start a session."""
 
@@ -1097,7 +1205,7 @@ def auth_callback(
 
     cfg = auth.load_entra()
     try:
-        txn = _sessions._serializer.loads(loki_auth_txn or "", max_age=600)
+        txn = _sessions._serializer.loads(bucky_auth_txn or "", max_age=600)
     except Exception:
         raise HTTPException(status_code=400, detail="sign-in expired; try again") from None
 
@@ -1113,7 +1221,7 @@ def auth_callback(
     # Land the user back on the app with the session set.
     redirect = RedirectResponse(url="/", status_code=302)
     _set_session_cookie(redirect, token)
-    redirect.delete_cookie("loki_auth_txn", path="/")
+    redirect.delete_cookie("bucky_auth_txn", path="/")
 
     service.store.append_audit(
         f"auth:{identity.email}", "auth.login", identity.email,

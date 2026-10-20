@@ -1,6 +1,6 @@
-# Deployment — AWS
+# Deployment â€” AWS
 
-Everything you need to deploy LOKI to AWS, in one place. The container files
+Everything you need to deploy BUCKY to AWS, in one place. The container files
 stay at the repo root (Docker needs the Dockerfile at the build-context root),
 so this is the **map and the runbook**, not a copy.
 
@@ -21,28 +21,28 @@ so this is the **map and the runbook**, not a copy.
 
 ```
             internal ALB (TLS)
-                   │
-   ECS Fargate: API task  ──┐
-   ECS Fargate: worker task ┤──► Aurora PostgreSQL (via RDS Proxy)
-                   │         │
-         Step Functions ◄──► SQS queues (per connector)
-                   │
+                   â”‚
+   ECS Fargate: API task  â”€â”€â”
+   ECS Fargate: worker task â”¤â”€â”€â–º Aurora PostgreSQL (via RDS Proxy)
+                   â”‚         â”‚
+         Step Functions â—„â”€â”€â–º SQS queues (per connector)
+                   â”‚
          Prometheus / Grafana / CloudWatch
 ```
 
 Once deployed, the knowledge base (uploaded handbooks, procedures) lives in the
-shared Aurora store, so **every user hits the same library** — which is the
+shared Aurora store, so **every user hits the same library** â€” which is the
 "shared for everyone" goal. Today it runs on per-machine SQLite.
 
 ## Deployment steps (once inputs are provided)
 
-Terraform needs no CDK bootstrap. The CI pipeline runs build → infra; to deploy
+Terraform needs no CDK bootstrap. The CI pipeline runs build â†’ infra; to deploy
 by hand:
 
 ```bash
 # 1. Build and push both images to ECR (CI's docker-build stage does this)
-docker build -t <ecr>/loki/api:<tag> .
-docker build -t <ecr>/loki/worker:<tag> .
+docker build -t <ecr>/bucky/api:<tag> .
+docker build -t <ecr>/bucky/worker:<tag> .
 #    docker push both
 
 # 2. Init Terraform against the GitLab-managed state backend
@@ -63,13 +63,13 @@ Verified against account `813714503704` / eu-west-1:
 
 | Blocker | Status with Terraform | Who clears it |
 |---|---|---|
-| Broken shared `CDKToolkit` bootstrap | **Resolved** — Terraform needs no CDK bootstrap | n/a |
-| `DevOps` SSO role lacks `iam:CreateRole` | **Resolved** — the provider assumes the platform automation role (same as `pace/manila`) | Needs the automation role ARN + trust |
+| Broken shared `CDKToolkit` bootstrap | **Resolved** â€” Terraform needs no CDK bootstrap | n/a |
+| `DevOps` SSO role lacks `iam:CreateRole` | **Resolved** â€” the provider assumes the platform automation role (same as `pace/manila`) | Needs the automation role ARN + trust |
 | `automation_role_arn` to assume | Required input | Platform team |
 | Account decision: `813714503704` vs dedicated | Open | You + platform team |
 | VPC/subnets, DNS hostname + TLS cert | Required inputs (`vpc_id`, `subnet_ids`, `certificate_arn`) | Platform / networking team |
 | GitLab Terraform state backend variables | `TF_STATE_*` CI/CD variables | You |
-| Secrets in AWS Secrets Manager (not `.env`) | `auth_secret_arn` input | You — and rotate the exposed ServiceNow password |
+| Secrets in AWS Secrets Manager (not `.env`) | `auth_secret_arn` input | You â€” and rotate the exposed ServiceNow password |
 
 ## Runtime configuration (set on the ECS task / environment)
 
@@ -77,10 +77,10 @@ See `overlay/README.md` for the full table. The deployment-critical ones:
 
 | Variable | Deploy value | Why |
 |---|---|---|
-| `LOKI_STORE_BACKEND` | `postgres` | Shared, multi-user store |
-| `LOKI_EXECUTION_MODE` | `simulation` | Keep simulation until a connector is signed off |
-| `LOKI_ENFORCE_AUTH` | `1` | Require a verified Entra session on every write |
-| `LOKI_LLM_ENABLED` | `1` (optional) | Advisory Opus 5 recommendations |
+| `BUCKY_STORE_BACKEND` | `postgres` | Shared, multi-user store |
+| `BUCKY_EXECUTION_MODE` | `simulation` | Keep simulation until a connector is signed off |
+| `BUCKY_ENFORCE_AUTH` | `1` | Require a verified Entra session on every write |
+| `BUCKY_LLM_ENABLED` | `1` (optional) | Advisory Opus 5 recommendations |
 | `BEDROCK_MODEL_ID` | `eu.anthropic.claude-opus-5` | The access-enabled model in eu-west-1 |
 
 For the full infrastructure detail, see `infra/README.md` and

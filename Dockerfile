@@ -29,24 +29,24 @@ RUN npm run build
 FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    OVERLAY_DB=/var/lib/loki/overlay_tasks.db \
-    LOKI_EXECUTION_MODE=simulation
+    OVERLAY_DB=/var/lib/bucky/overlay_tasks.db \
+    BUCKY_EXECUTION_MODE=simulation
 
 WORKDIR /app
 COPY requirements-api.txt ./
 RUN pip install --no-cache-dir --requirement requirements-api.txt \
-    && groupadd --system loki \
-    && useradd --system --gid loki --home-dir /app loki \
-    && mkdir -p /var/lib/loki \
-    && chown -R loki:loki /var/lib/loki
+    && groupadd --system bucky \
+    && useradd --system --gid bucky --home-dir /app bucky \
+    && mkdir -p /var/lib/bucky \
+    && chown -R bucky:bucky /var/lib/bucky
 
-COPY --chown=loki:loki overlay ./overlay
-COPY --chown=loki:loki system2 ./system2
-COPY --chown=loki:loki src ./src
-COPY --chown=loki:loki data/incidents.csv ./data/incidents.csv
-COPY --from=ui-build --chown=loki:loki /build/dist ./overlay/ui/dist
+COPY --chown=bucky:bucky overlay ./overlay
+COPY --chown=bucky:bucky system2 ./system2
+COPY --chown=bucky:bucky src ./src
+COPY --chown=bucky:bucky data/incidents.csv ./data/incidents.csv
+COPY --from=ui-build --chown=bucky:bucky /build/dist ./overlay/ui/dist
 
-USER loki
+USER bucky
 EXPOSE 8800
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8800/api/health', timeout=3).read()"]

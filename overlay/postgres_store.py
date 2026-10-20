@@ -1,10 +1,10 @@
-"""PostgreSQL implementation of the LOKI repository contract.
+"""PostgreSQL implementation of the BUCKY repository contract.
 
 The adapter preserves the existing domain and API shapes while using JSONB,
 explicit ordering columns, conflict-safe inserts, and pooled connections. It
 never falls back to SQLite. Production migrations are expected to run as a
 one-off task; automatic migration is available only through the explicit
-LOKI_POSTGRES_AUTO_MIGRATE flag or migration tool.
+BUCKY_POSTGRES_AUTO_MIGRATE flag or migration tool.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from .domain import (
 )
 from .store import _run_from_document
 
-REQUIRED_SCHEMA_VERSION = 2
+REQUIRED_SCHEMA_VERSION = 4
 _MIGRATIONS = Path(__file__).resolve().parent / "sql" / "postgres"
 
 
@@ -69,27 +69,27 @@ def _execution(row: dict[str, Any]) -> dict[str, Any]:
 def postgres_connection_info_from_env() -> str:
     """Build connection information without logging or returning secret fields."""
 
-    dsn = os.getenv("LOKI_POSTGRES_DSN", "").strip()
+    dsn = os.getenv("BUCKY_POSTGRES_DSN", "").strip()
     if dsn:
         return dsn
     required = {
-        "host": os.getenv("LOKI_POSTGRES_HOST"),
-        "dbname": os.getenv("LOKI_POSTGRES_DB", "loki"),
-        "user": os.getenv("LOKI_POSTGRES_USER"),
-        "password": os.getenv("LOKI_POSTGRES_PASSWORD"),
+        "host": os.getenv("BUCKY_POSTGRES_HOST"),
+        "dbname": os.getenv("BUCKY_POSTGRES_DB", "bucky"),
+        "user": os.getenv("BUCKY_POSTGRES_USER"),
+        "password": os.getenv("BUCKY_POSTGRES_PASSWORD"),
     }
-    missing = [f"LOKI_POSTGRES_{k.upper()}" for k, value in required.items() if not value]
+    missing = [f"BUCKY_POSTGRES_{k.upper()}" for k, value in required.items() if not value]
     if missing:
         raise RuntimeError(
             "PostgreSQL connection settings are incomplete; missing " + ", ".join(missing)
         )
     return conninfo.make_conninfo(
         host=required["host"],
-        port=os.getenv("LOKI_POSTGRES_PORT", "5432"),
+        port=os.getenv("BUCKY_POSTGRES_PORT", "5432"),
         dbname=required["dbname"],
         user=required["user"],
         password=required["password"],
-        sslmode=os.getenv("LOKI_POSTGRES_SSLMODE", "require"),
+        sslmode=os.getenv("BUCKY_POSTGRES_SSLMODE", "require"),
         connect_timeout="5",
     )
 
@@ -123,9 +123,9 @@ class PostgresStore:
     def from_env(cls) -> "PostgresStore":
         store = cls(
             postgres_connection_info_from_env(),
-            min_size=int(os.getenv("LOKI_POSTGRES_POOL_MIN", "1")),
-            max_size=int(os.getenv("LOKI_POSTGRES_POOL_MAX", "10")),
-            auto_migrate=os.getenv("LOKI_POSTGRES_AUTO_MIGRATE", "0").lower()
+            min_size=int(os.getenv("BUCKY_POSTGRES_POOL_MIN", "1")),
+            max_size=int(os.getenv("BUCKY_POSTGRES_POOL_MAX", "10")),
+            auto_migrate=os.getenv("BUCKY_POSTGRES_AUTO_MIGRATE", "0").lower()
             in ("1", "true", "yes"),
         )
         status = store.readiness()
@@ -834,3 +834,101 @@ class PostgresStore:
                 "DELETE FROM credentials WHERE credential_id=%s", (credential_id,)
             )
             return cursor.rowcount > 0
+
+    # Recommendation feedback --------------------------------------------
+
+    def save_recommendation_feedback(self, feedback: dict[str, Any]) -> None:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """INSERT INTO recommendation_feedback
+                (feedback_id,ticket_ref,live_id,procedure_id,verdict,
+                 created_by,created_at,document)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    feedback["feedback_id"],
+                    feedback["ticket_ref"],
+                    feedback.get("live_id") or None,
+                    feedback.get("procedure_id") or None,
+                    feedback["verdict"],
+                    feedback["created_by"],
+                    feedback["created_at"],
+                    Jsonb(feedback),
+                ),
+            )
+
+    def list_recommendation_feedback(
+        self,
+        ticket_ref: str | None = None,
+        procedure_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        query = "SELECT document FROM recommendation_feedback"
+        clauses: list[str] = []
+        args: list[Any] = []
+        if ticket_ref:
+            clauses.append("ticket_ref=%s")
+            args.append(ticket_ref)
+        if procedure_id:
+            clauses.append("procedure_id=%s")
+            args.append(procedure_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC, feedback_seq DESC LIMIT %s"
+        args.append(max(1, min(500, int(limit))))
+        with self._pool.connection() as connection:
+            rows = connection.execute(query, args).fetchall()
+        return [row["document"] for row in rows]
+
+    # Triage runs ---------------------------------------------------------
+
+    def save_triage_run(self, triage: dict[str, Any]) -> None:
+        with self._pool.connection() as connection:
+            connection.execute(
+                """INSERT INTO triage_runs
+                (triage_id,live_id,ticket_ref,host,alert_kind,classification,
+                 routed_to_human,simulated,created_by,created_at,document)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    triage["triage_id"],
+                    triage.get("live_id") or None,
+                    triage["ticket_ref"],
+                    triage.get("host") or None,
+                    triage.get("alert_kind") or None,
+                    triage["classification"],
+                    bool(triage.get("routed_to_human")),
+                    bool(triage.get("simulated")),
+                    triage["created_by"],
+                    triage["created_at"],
+                    Jsonb(triage),
+                ),
+            )
+
+    def get_triage_run(self, triage_id: str) -> dict[str, Any] | None:
+        with self._pool.connection() as connection:
+            row = connection.execute(
+                "SELECT document FROM triage_runs WHERE triage_id=%s", (triage_id,)
+            ).fetchone()
+        return row["document"] if row else None
+
+    def list_triage_runs(
+        self,
+        live_id: str | None = None,
+        ticket_ref: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        query = "SELECT document FROM triage_runs"
+        clauses: list[str] = []
+        args: list[Any] = []
+        if live_id:
+            clauses.append("live_id=%s")
+            args.append(live_id)
+        if ticket_ref:
+            clauses.append("ticket_ref=%s")
+            args.append(ticket_ref)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC, triage_seq DESC LIMIT %s"
+        args.append(max(1, min(500, int(limit))))
+        with self._pool.connection() as connection:
+            rows = connection.execute(query, args).fetchall()
+        return [row["document"] for row in rows]

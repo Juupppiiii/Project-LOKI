@@ -4,6 +4,7 @@ import { api, setActor } from "./api.js";
 import Tabs from "./components/Tabs.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 import { Callout, Spinner } from "./components/primitives.jsx";
+import InvestigationView from "./views/InvestigationView.jsx";
 import KnowledgeView from "./views/KnowledgeView.jsx";
 import LiveView from "./views/LiveView.jsx";
 import Login from "./views/Login.jsx";
@@ -80,8 +81,13 @@ export default function App() {
     )
   ).length;
 
+  const liveCount = Object.values(summary?.live?.counts || {}).reduce(
+    (total, count) => total + Number(count || 0),
+    0
+  );
   const tabs = [
     { id: "queue", label: "Queue", count: needsYou },
+    { id: "investigate", label: "Investigate", count: liveCount },
     { id: "knowledge", label: "Knowledge", count: summary?.pending_drafts ?? 0 },
     { id: "live", label: "Live", count: summary?.live?.counts?.new ?? 0 },
   ];
@@ -110,7 +116,7 @@ export default function App() {
   return (
     <div className="app">
       <div className="mode-banner" role="status">
-        Execution defaults to <strong>simulation</strong> — real connectors
+        Execution defaults to <strong>simulation</strong> â€” real connectors
         require explicit opt-in. Advisory AI (Opus 5) is available for
         grounded step recommendations.
       </div>
@@ -120,7 +126,7 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true">
             L
           </span>
-          <h1>LOKI</h1>
+          <h1>BUCKY</h1>
         </div>
 
         <Tabs tabs={tabs} active={tab} onChange={setTab} />
@@ -171,6 +177,8 @@ export default function App() {
           </div>
         ) : tab === "queue" ? (
           <QueueView runs={runs} onRefresh={refresh} busy={busy} me={me} />
+        ) : tab === "investigate" ? (
+          <InvestigationView onRefresh={refresh} />
         ) : tab === "knowledge" ? (
           <KnowledgeView onRefresh={refresh} busy={busy} me={me} />
         ) : (

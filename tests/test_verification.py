@@ -119,7 +119,7 @@ def test_outcome_serialises():
 def test_execute_records_verification_in_audit(service, restart_ticket, monkeypatch):
     # End-to-end: a simulated run executes, and the step.executed audit record
     # now carries a 'verification' block proving the postcondition was checked.
-    monkeypatch.setenv("LOKI_ENFORCE_SOD", "0")
+    monkeypatch.setenv("BUCKY_ENFORCE_SOD", "0")
     run = service.propose(restart_ticket, actor="op@x")
     # approve + execute the first agent chunk
     first_chunk = run.chunks[0]

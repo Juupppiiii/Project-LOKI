@@ -49,7 +49,7 @@ def test_suggestions_can_surface_a_hint_when_keyword_misses(service):
 
 
 def test_suggestions_can_be_disabled_by_env(service, monkeypatch):
-    monkeypatch.setenv("LOKI_SEMANTIC_SUGGESTIONS", "0")
+    monkeypatch.setenv("BUCKY_SEMANTIC_SUGGESTIONS", "0")
     result = service.semantic_suggestions({"number": "INC9102", "short_description": "x"})
     assert result["enabled"] is False
     assert result["suggestions"] == []

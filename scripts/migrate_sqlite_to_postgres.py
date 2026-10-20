@@ -1,4 +1,4 @@
-"""Explicit, verifiable SQLite -> PostgreSQL migration for LOKI.
+"""Explicit, verifiable SQLite -> PostgreSQL migration for BUCKY.
 
 Dry-run is the default and never connects to PostgreSQL. ``--apply`` creates the
 versioned PostgreSQL schema, refuses a non-empty target, copies all tables in
@@ -55,6 +55,8 @@ TABLES = (
     TableSpec("settings", ("key", "value", "updated_at"), "key", ("value",)),
     TableSpec("credentials", ("credential_id", "name", "connector", "account", "secret_ref", "scope", "permissions", "enabled", "created_by", "created_at", "document"), "credential_id", ("scope", "permissions", "document"), ("enabled",)),
     TableSpec("action_executions", ("idempotency_key", "run_id", "chunk_id", "step_id", "approval_id", "action", "action_version", "catalog_version", "connector", "operation", "envelope", "status", "outcome", "error", "created_at", "updated_at"), "idempotency_key", ("envelope",)),
+    TableSpec("recommendation_feedback", ("feedback_id", "ticket_ref", "live_id", "procedure_id", "verdict", "created_by", "created_at", "document"), "feedback_id", ("document",)),
+    TableSpec("triage_runs", ("triage_id", "live_id", "ticket_ref", "host", "alert_kind", "classification", "routed_to_human", "simulated", "created_by", "created_at", "document"), "triage_id", ("document",), ("routed_to_human", "simulated")),
 )
 
 

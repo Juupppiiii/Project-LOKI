@@ -97,7 +97,7 @@ def test_unresolved_parameter_is_refused(service, restart_ticket):
 
 def test_unknown_execution_mode_cannot_be_constructed(monkeypatch):
     # Only 'simulation' and 'live' are valid; anything else fails at startup.
-    monkeypatch.setenv("LOKI_EXECUTION_MODE", "yolo")
+    monkeypatch.setenv("BUCKY_EXECUTION_MODE", "yolo")
     with pytest.raises(RuntimeError):
         ActionGateway()
 
@@ -105,7 +105,7 @@ def test_unknown_execution_mode_cannot_be_constructed(monkeypatch):
 def test_default_gateway_is_simulation_only(monkeypatch):
     # With no override the gateway is simulation mode and registers no real
     # connector. A simulation run executes against the simulation connector.
-    monkeypatch.delenv("LOKI_EXECUTION_MODE", raising=False)
+    monkeypatch.delenv("BUCKY_EXECUTION_MODE", raising=False)
     gateway = ActionGateway()
     assert gateway.mode == "simulation"
 

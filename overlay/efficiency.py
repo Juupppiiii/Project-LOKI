@@ -57,11 +57,11 @@ DEFAULT_DATASET = _PROJECT_ROOT / "data" / "closed_incidents.csv"
 
 # Resolutions faster than this are treated as auto-acknowledgements, not real
 # human work, and are excluded from the "typical" (trimmed) figure.
-AUTO_ACK_SECONDS = int(os.getenv("LOKI_EFFICIENCY_AUTOACK_SECONDS", "120"))
+AUTO_ACK_SECONDS = int(os.getenv("BUCKY_EFFICIENCY_AUTOACK_SECONDS", "120"))
 
 
 def efficiency_enabled() -> bool:
-    return os.getenv("LOKI_EFFICIENCY", "1").strip().lower() not in (
+    return os.getenv("BUCKY_EFFICIENCY", "1").strip().lower() not in (
         "0", "false", "no", "",
     )
 

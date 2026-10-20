@@ -31,7 +31,7 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SOLVED = _PROJECT_ROOT / "data" / "closed_incidents.csv"
 # Prefer the richer structured JSON knowledge (built by build_knowledge_json.py)
-# when present — it carries 16k+ pre-cleaned substantive resolutions vs ~500 in
+# when present â€” it carries 16k+ pre-cleaned substantive resolutions vs ~500 in
 # the raw CSV. Fall back to the CSV if the JSON hasn't been built yet.
 DEFAULT_KNOWLEDGE_JSON = _PROJECT_ROOT / "knowledge" / "tickets" / "resolved_tickets.json"
 
@@ -141,11 +141,11 @@ class SolvedTicketIndex:
         matrix grow with the corpus, so we cap the index at the N most recent
         substantive resolutions (the file is already newest-first). This keeps
         retrieval fast and memory-bounded; recency is a good proxy for relevance.
-        Raise LOKI_KB_MAX_TICKETS to index more at the cost of load time/memory.
+        Raise BUCKY_KB_MAX_TICKETS to index more at the cost of load time/memory.
         """
         import json
 
-        cap = int(os.getenv("LOKI_KB_MAX_TICKETS", "4000"))
+        cap = int(os.getenv("BUCKY_KB_MAX_TICKETS", "4000"))
         rows: list[SolvedTicket] = []
         texts: list[str] = []
         data = json.loads(self.dataset.read_text(encoding="utf-8"))

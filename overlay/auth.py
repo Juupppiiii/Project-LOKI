@@ -46,8 +46,8 @@ from typing import Any
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-COOKIE_NAME = "loki_session"
-SESSION_MAX_AGE = int(os.getenv("LOKI_SESSION_MAX_AGE", str(8 * 3600)))  # 8h
+COOKIE_NAME = "bucky_session"
+SESSION_MAX_AGE = int(os.getenv("BUCKY_SESSION_MAX_AGE", str(8 * 3600)))  # 8h
 
 # ---------------------------------------------------------------------------
 # Roles
@@ -59,10 +59,10 @@ ROLES = ["viewer", "operator", "approver", "admin"]
 ROLE_RANK = {r: i for i, r in enumerate(ROLES)}
 
 ROLE_LABELS = {
-    "viewer": "Viewer — can look, cannot change anything",
-    "operator": "Operator — can run approved steps and do manual work",
-    "approver": "Approver — can approve agent actions and publish procedures",
-    "admin": "Admin — can also manage access credentials",
+    "viewer": "Viewer â€” can look, cannot change anything",
+    "operator": "Operator â€” can run approved steps and do manual work",
+    "approver": "Approver â€” can approve agent actions and publish procedures",
+    "admin": "Admin â€” can also manage access credentials",
 }
 
 # What each capability requires. Checked server-side; the UI only mirrors it.
@@ -80,6 +80,9 @@ CAPABILITIES = {
     "manage_credentials": "admin",  # the keys to what the agent can reach
     "manage_live_feed": "operator",
     "run_diagnostic": "operator",   # read-only evidence gathering
+    "view_investigation": "viewer", # ticket evidence and recommendations
+    "submit_recommendation_feedback": "operator",
+    "run_triage": "operator",       # start the read-only triage agent
 }
 
 
@@ -156,7 +159,7 @@ class AuthError(Exception):
 _LEEWAY_SECONDS = 60
 # How long a fetched JWKS is reused before refetching (seconds). Key rollover
 # is handled by PyJWKClient refetching when an unknown kid is seen.
-_JWKS_CACHE_SECONDS = int(os.getenv("LOKI_JWKS_CACHE_SECONDS", "3600"))
+_JWKS_CACHE_SECONDS = int(os.getenv("BUCKY_JWKS_CACHE_SECONDS", "3600"))
 
 
 class _JWKSClientCache:
@@ -238,19 +241,19 @@ def verify_id_token(
 
 def load_entra() -> EntraConfig:
     return EntraConfig(
-        tenant_id=os.getenv("LOKI_ENTRA_TENANT_ID", ""),
-        client_id=os.getenv("LOKI_ENTRA_CLIENT_ID", ""),
-        client_secret=os.getenv("LOKI_ENTRA_CLIENT_SECRET", ""),
+        tenant_id=os.getenv("BUCKY_ENTRA_TENANT_ID", ""),
+        client_id=os.getenv("BUCKY_ENTRA_CLIENT_ID", ""),
+        client_secret=os.getenv("BUCKY_ENTRA_CLIENT_SECRET", ""),
         redirect_uri=os.getenv(
-            "LOKI_ENTRA_REDIRECT_URI", "http://127.0.0.1:8800/api/auth/callback"
+            "BUCKY_ENTRA_REDIRECT_URI", "http://127.0.0.1:8800/api/auth/callback"
         ),
     )
 
 
-# Map Entra group object-ids (or app-role names) to LOKI roles. Configured as
+# Map Entra group object-ids (or app-role names) to BUCKY roles. Configured as
 # "groupid=role,groupid=role"; unmapped users get the floor role.
 def _role_map() -> dict[str, str]:
-    raw = os.getenv("LOKI_ENTRA_ROLE_MAP", "")
+    raw = os.getenv("BUCKY_ENTRA_ROLE_MAP", "")
     out: dict[str, str] = {}
     for pair in raw.split(","):
         if "=" in pair:
@@ -261,7 +264,7 @@ def _role_map() -> dict[str, str]:
     return out
 
 
-DEFAULT_ROLE = os.getenv("LOKI_DEFAULT_ROLE", "operator")
+DEFAULT_ROLE = os.getenv("BUCKY_DEFAULT_ROLE", "operator")
 
 
 def dev_login_allowed() -> bool:
@@ -302,7 +305,7 @@ class SessionManager:
     """Signs and verifies the session cookie. Holds no server-side state."""
 
     def __init__(self) -> None:
-        secret = os.getenv("LOKI_SECRET_KEY")
+        secret = os.getenv("BUCKY_SECRET_KEY")
         if not secret:
             # Ephemeral key: sessions survive only until restart. Deliberately
             # not persisted, so a missing key never means a predictable one.
@@ -310,7 +313,7 @@ class SessionManager:
             self._ephemeral = True
         else:
             self._ephemeral = False
-        self._serializer = URLSafeTimedSerializer(secret, salt="loki-session")
+        self._serializer = URLSafeTimedSerializer(secret, salt="bucky-session")
 
     @property
     def ephemeral_key(self) -> bool:
@@ -401,7 +404,7 @@ def exchange_code_for_identity(cfg: EntraConfig, code: str, expected_nonce: str)
 
 
 def _resolve_role(claims: dict[str, Any]) -> str:
-    """Map Entra group/role claims to a LOKI role, else the default."""
+    """Map Entra group/role claims to a BUCKY role, else the default."""
 
     mapping = _role_map()
     if mapping:

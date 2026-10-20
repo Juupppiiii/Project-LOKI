@@ -6,7 +6,7 @@ NOT touch the normal discovery pipeline config or outputs.
 
 Goal: gather up to N closed incidents that actually carry resolution content
 (close_notes / work_notes) so we can see the resolution steps and notes -- the
-raw material for drafting new LOKI procedures.
+raw material for drafting new BUCKY procedures.
 
     python scripts/pull_closed_incidents.py                 # 5000, default
     python scripts/pull_closed_incidents.py --limit 2000

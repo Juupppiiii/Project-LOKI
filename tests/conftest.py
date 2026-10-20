@@ -47,8 +47,8 @@ def service(sqlite_path, monkeypatch):
     from overlay.service import OverlayService
 
     monkeypatch.setenv("OVERLAY_DB", sqlite_path)
-    monkeypatch.setenv("LOKI_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("LOKI_EXECUTION_MODE", "simulation")
+    monkeypatch.setenv("BUCKY_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("BUCKY_EXECUTION_MODE", "simulation")
     instance = OverlayService()
     try:
         yield instance
@@ -74,4 +74,4 @@ def restart_ticket() -> dict:
 def postgres_dsn():
     """PostgreSQL DSN for repository tests, or None to skip cleanly."""
 
-    return os.getenv("LOKI_TEST_POSTGRES_DSN")
+    return os.getenv("BUCKY_TEST_POSTGRES_DSN")

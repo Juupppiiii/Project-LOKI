@@ -2,7 +2,7 @@
 
 Reads data/closed_incidents.csv (produced by pull_closed_incidents.py), strips
 boilerplate / empty resolutions, clusters what remains by meaning, and ranks the
-clusters as candidate LOKI procedures with example tickets.
+clusters as candidate BUCKY procedures with example tickets.
 
 Read-only and offline: it touches no network and reuses the project's own
 semantic vectorizer for clustering (same embeddings the advisory matcher uses).

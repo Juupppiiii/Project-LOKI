@@ -1,4 +1,4 @@
-"""Generate the LOKI architecture document as a PDF.
+"""Generate the BUCKY architecture document as a PDF.
 
 Uses fpdf (already installed). Pure layout code -- no network, no app imports --
 so it can run anywhere. Content is drawn from the real modules in overlay/.
@@ -65,7 +65,7 @@ class Doc(FPDF):
         self.set_font("Helvetica", "", 8)
         self.set_text_color(*INK3)
         self.set_xy(MARGIN, 10)
-        self.cell(CONTENT_W / 2, 5, "LOKI — System Architecture", align="L")
+        self.cell(CONTENT_W / 2, 5, "BUCKY â€” System Architecture", align="L")
         self.set_xy(MARGIN + CONTENT_W / 2, 10)
         self.cell(CONTENT_W / 2, 5, "Human-in-the-loop ticket automation", align="R")
         self.set_draw_color(*LINE)
@@ -82,7 +82,7 @@ class Doc(FPDF):
         self.set_xy(MARGIN, -14)
         self.cell(CONTENT_W / 2, 5, f"Page {self.page_no()}", align="L")
         self.set_xy(MARGIN + CONTENT_W / 2, -14)
-        self.cell(CONTENT_W / 2, 5, "Simulation only — no live execution", align="R")
+        self.cell(CONTENT_W / 2, 5, "Simulation only â€” no live execution", align="R")
 
 
 def h1(pdf, text):
@@ -252,7 +252,7 @@ pdf.cell(16, 8, "L", align="C")
 pdf.set_xy(MARGIN + 22, pdf.get_y() - 4)
 pdf.set_font("Helvetica", "B", 30)
 pdf.set_text_color(*INK)
-pdf.cell(0, 16, "LOKI")
+pdf.cell(0, 16, "BUCKY")
 pdf.ln(24)
 pdf.set_font("Helvetica", "B", 17)
 pdf.set_text_color(*INK)
@@ -270,7 +270,7 @@ pdf.set_font("Helvetica", "", 10)
 pdf.set_text_color(*INK2)
 pdf.multi_cell(
     CONTENT_W, 5.4,
-    "LOKI watches the tickets a team receives, works out which ones follow a "
+    "BUCKY watches the tickets a team receives, works out which ones follow a "
     "known procedure, and lets a person hand the safe, repetitive steps to an "
     "agent while keeping the complex or high-impact work with a human. The "
     "agent is granted work one step at a time, never a whole ticket.",
@@ -294,10 +294,10 @@ pdf.multi_cell(CONTENT_W, 4.4,
 
 # ---- 1. the idea ----------------------------------------------------------
 pdf.add_page()
-h1(pdf, "1  What LOKI does")
+h1(pdf, "1  What BUCKY does")
 body(pdf,
      "A support team gets a stream of tickets. Many are the same handful of "
-     "problems solved the same way every time. LOKI turns those repeatable "
+     "problems solved the same way every time. BUCKY turns those repeatable "
      "resolutions into structured procedures, matches incoming tickets to them, "
      "and runs them under human control.")
 
@@ -373,23 +373,23 @@ body(pdf,
 
 h2(pdf, "Server layers (Python / FastAPI)")
 layer_box(pdf, "api.py", "HTTP contract every client speaks; authentication and role gates", ACCENT)
-layer_box(pdf, "service.py", "Application authority — every use case and all rule enforcement", ACCENT)
+layer_box(pdf, "service.py", "Application authority â€” every use case and all rule enforcement", ACCENT)
 layer_box(pdf, "auth.py", "Sessions, identity, roles; Entra SSO with a dev fallback", OK)
 layer_box(pdf, "planner.py", "Ticket + procedure into an approvable, chunked plan", INK2)
 layer_box(pdf, "risk.py", "Classifies each step; default-deny", WARN)
 layer_box(pdf, "registry.py", "Effective rule set: built-in + published procedures", INK2)
 layer_box(pdf, "knowledge.py", "Parses uploaded handbooks into reviewable drafts", INK2)
-layer_box(pdf, "credentials.py", "Access references and scope — pointers to secrets, never secrets", DANGER)
+layer_box(pdf, "credentials.py", "Access references and scope â€” pointers to secrets, never secrets", DANGER)
 layer_box(pdf, "live.py", "Read-only ServiceNow polling and query builder", OK)
-layer_box(pdf, "simulator.py", "Step execution — simulation only; where connectors will attach", DANGER)
+layer_box(pdf, "simulator.py", "Step execution â€” simulation only; where connectors will attach", DANGER)
 layer_box(pdf, "store.py", "Persistence behind a repository seam (SQLite today)", INK2)
-layer_box(pdf, "domain.py", "Pure model: runs, steps, risk, state machines — no framework", INK3)
+layer_box(pdf, "domain.py", "Pure model: runs, steps, risk, state machines â€” no framework", INK3)
 
 pdf.ln(1)
 h2(pdf, "Client")
 layer_box(pdf, "ui/  (React)", "Thin browser client; holds no business logic; light/dark themes", ACCENT)
 body(pdf,
-     "Because the client holds no logic, a tampered browser gains nothing — the "
+     "Because the client holds no logic, a tampered browser gains nothing â€” the "
      "server re-checks every rule. The same property makes a future desktop app "
      "a small change: point it at the API and ship the built assets.")
 
@@ -432,15 +432,15 @@ h1(pdf, "5  The risk model")
 body(pdf,
      "Every step is classified before anyone can act on it. Classification is "
      "default-deny: anything not explicitly recognised as safe becomes RX and "
-     "stays with a human. Colour is never the only signal — each level carries "
+     "stays with a human. Colour is never the only signal â€” each level carries "
      "a plain-language label in the UI.")
 pdf.ln(2)
 
-risk_row(pdf, "R0", "Read-only observation — looks, changes nothing", "Agent (with approval)", OK)
+risk_row(pdf, "R0", "Read-only observation â€” looks, changes nothing", "Agent (with approval)", OK)
 risk_row(pdf, "R1", "Low impact, additive or reversible (e.g. a work note)", "Agent (with approval)", ACCENT)
 risk_row(pdf, "R2", "Real operational change (e.g. restart a service)", "Agent (own approval)", WARN)
 risk_row(pdf, "R3", "High impact or destructive (e.g. reboot, delete)", "Human only", DANGER)
-risk_row(pdf, "RX", "Unclassified — safety cannot be proven", "Human only", INK3)
+risk_row(pdf, "RX", "Unclassified â€” safety cannot be proven", "Human only", INK3)
 
 pdf.ln(3)
 h2(pdf, "Why arbitrary commands stay human")
@@ -456,7 +456,7 @@ callout(
     "Uploads cannot grant themselves execution rights",
     "A handbook may declare a step low-risk. When the action is one whose safety "
     "cannot be verified, that claim is flagged for the reviewer before "
-    "publishing — the one route by which an upload could try to widen what the "
+    "publishing â€” the one route by which an upload could try to widen what the "
     "agent may do.",
     tone=WARN, bg=(253, 243, 227),
 )
@@ -475,7 +475,7 @@ for text in [
     "Exactly one active approval per chunk; a superseded one can never authorise a run.",
     "Steps run in order; the agent refuses to jump ahead of outstanding work.",
     "R2 needs its own individual approval and cannot hide inside a low-risk chunk.",
-    "R3 and RX are never agent-executed — refused by policy and again by the simulator.",
+    "R3 and RX are never agent-executed â€” refused by policy and again by the simulator.",
     "Manual completion requires evidence.",
     "The audit log is append-only, and distinguishes what acted (agent), who "
     "triggered it, and who approved it.",
@@ -491,7 +491,7 @@ callout(
     "simulator.py has no network, filesystem or credential access, and the "
     "System 2 live-execute path raises unconditionally. Turning on real "
     "connectors is a separate, deliberate project requiring allowlisted "
-    "adapters, rollback, and a security review — not a config flag.",
+    "adapters, rollback, and a security review â€” not a config flag.",
     tone=DANGER, bg=(253, 236, 235),
 )
 
@@ -565,17 +565,17 @@ bullet(pdf, "Dev login",
        "never accidentally ship as the real auth mechanism.")
 
 h2(pdf, "Roles gate what a person may do")
-risk_row(pdf, "V", "Viewer — read only", "", INK3)
-risk_row(pdf, "O", "Operator — create runs, manual steps, uploads", "", ACCENT)
-risk_row(pdf, "A", "Approver — also approve agent actions, publish", "", OK)
-risk_row(pdf, "AD", "Admin — also manage access credentials", "", DANGER)
+risk_row(pdf, "V", "Viewer â€” read only", "", INK3)
+risk_row(pdf, "O", "Operator â€” create runs, manual steps, uploads", "", ACCENT)
+risk_row(pdf, "A", "Approver â€” also approve agent actions, publish", "", OK)
+risk_row(pdf, "AD", "Admin â€” also manage access credentials", "", DANGER)
 
 pdf.ln(3)
 callout(
     pdf,
     "Login does not become the agent's authority",
     "Your role decides what you may approve. The agent never borrows your "
-    "identity or permissions — it acts through the narrow, scoped service "
+    "identity or permissions â€” it acts through the narrow, scoped service "
     "accounts in the credentials centre. An executed step is recorded as "
     "actor=agent with triggered_by set to the person. This is what stops a "
     "malicious ticket from turning your access into a weapon.",
@@ -643,6 +643,6 @@ pdf.multi_cell(CONTENT_W, 4.6,
 from pathlib import Path as _Path  # noqa: E402  (imperative build script; import follows document assembly)
 _root = _Path(__file__).resolve().parent.parent
 (_root / "output").mkdir(exist_ok=True)
-out = str(_root / "output" / "LOKI_Architecture.pdf")
+out = str(_root / "output" / "BUCKY_Architecture.pdf")
 pdf.output(out)
 print("wrote", out)

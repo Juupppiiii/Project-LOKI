@@ -34,3 +34,15 @@ variable "bedrock_model_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "enable_ssm_diagnostics" {
+  description = "Grant the API task role read-only SSM Run Command on the diagnostic target instances (Tier A triage agent)"
+  type        = bool
+  default     = false
+}
+
+variable "ssm_diagnostic_instance_arns" {
+  description = "ARNs of the managed instances the read-only diagnostic backend may target via SSM Run Command"
+  type        = list(string)
+  default     = []
+}

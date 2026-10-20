@@ -1,6 +1,6 @@
 """Read-only diagnostic gateway -- a SEPARATE boundary from action execution.
 
-This module implements Project STEPH/LOKI workstream D: a fixed catalogue of
+This module implements Project BUCKY/BUCKY workstream D: a fixed catalogue of
 read-only diagnostic operations a human-authorised investigator can run against
 an allowlisted target to GATHER EVIDENCE. It is deliberately independent of:
 
@@ -22,7 +22,7 @@ Non-negotiable guardrails enforced here (per the planning document):
 * **Allowlists.** Targets, ports, and operations are allowlisted; anything not
   explicitly permitted is refused. Default-deny throughout.
 * **Dual-switch for the real path.** Like the ServiceNow connector, the real
-  backend only runs when LOKI_EXECUTION_MODE=live AND LOKI_DIAGNOSTICS_ENABLED=1.
+  backend only runs when BUCKY_EXECUTION_MODE=live AND BUCKY_DIAGNOSTICS_ENABLED=1.
   Otherwise a deterministic mock backend answers, so the whole gateway is
   exercisable offline and in tests without touching any host or network.
 
@@ -134,25 +134,25 @@ _MAX_OUTPUT_CHARS = 10_000
 
 
 def _diagnostics_enabled() -> bool:
-    mode = os.getenv("LOKI_EXECUTION_MODE", "simulation").strip().lower()
-    switch = os.getenv("LOKI_DIAGNOSTICS_ENABLED", "0").strip().lower()
+    mode = os.getenv("BUCKY_EXECUTION_MODE", "simulation").strip().lower()
+    switch = os.getenv("BUCKY_DIAGNOSTICS_ENABLED", "0").strip().lower()
     return mode == "live" and switch in ("1", "true", "yes", "on")
 
 
 def _target_allowlist() -> set[str]:
-    """Hosts the gateway may target, from LOKI_DIAGNOSTICS_TARGETS (comma list).
+    """Hosts the gateway may target, from BUCKY_DIAGNOSTICS_TARGETS (comma list).
 
     Empty by default: with no allowlist, every real target is refused. The mock
     backend ignores this (it touches nothing), so offline use needs no config,
     but the REAL backend can only reach explicitly listed hosts.
     """
 
-    raw = os.getenv("LOKI_DIAGNOSTICS_TARGETS", "")
+    raw = os.getenv("BUCKY_DIAGNOSTICS_TARGETS", "")
     return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
 
 def _port_allowlist() -> set[int]:
-    raw = os.getenv("LOKI_DIAGNOSTICS_PORTS", "53,80,443,445,3389,5985,5986")
+    raw = os.getenv("BUCKY_DIAGNOSTICS_PORTS", "53,80,443,445,3389,5985,5986")
     out: set[int] = set()
     for tok in raw.split(","):
         tok = tok.strip()
@@ -212,21 +212,45 @@ class MockDiagnosticBackend:
         raise DiagnosticFailed(f"mock backend has no reading for '{operation_id}'")
 
 
+def _ssm_backend_enabled() -> bool:
+    """The real SSM backend is a THIRD explicit opt-in on top of the dual-switch.
+
+    Even in live + diagnostics-enabled mode, the real host channel stays off
+    unless BUCKY_SSM_DIAGNOSTICS_ENABLED is set. This keeps "read live data" and
+    "read a real host over SSM" as separate, deliberate decisions.
+    """
+
+    return os.getenv("BUCKY_SSM_DIAGNOSTICS_ENABLED", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def _real_backend_factory() -> "DiagnosticBackend":
     """Build the real read-only backend (lazy import).
 
-    Deliberately not implemented here: a real backend runs reviewed, read-only
-    operations against an allowlisted host (e.g. a remote agent's Get-Service /
-    Get-PSDrive / Resolve-DnsName / Test-NetConnection, or SSM for managed
-    nodes). It plugs in behind this same protocol when a target channel is
-    reviewed and enabled. Until then, requesting the real path fails closed
-    rather than silently doing nothing.
+    The real channel is AWS SSM Run Command running a fixed, read-only PowerShell
+    snippet per operation against an allowlisted managed node (see
+    ``diagnostics_ssm``). It plugs in behind this same single-``read`` protocol,
+    so the gateway's validation and target allowlist still run first.
+
+    It is gated by a THIRD switch (``BUCKY_SSM_DIAGNOSTICS_ENABLED``) on top of
+    the live + diagnostics dual-switch. If that switch is off, requesting the
+    real path fails closed rather than silently doing nothing.
     """
 
-    raise DiagnosticFailed(
-        "no real diagnostic backend is registered; diagnostics run against the "
-        "mock backend until a reviewed read-only target channel is enabled"
-    )
+    if not _ssm_backend_enabled():
+        raise DiagnosticFailed(
+            "no real diagnostic backend is enabled; set "
+            "BUCKY_SSM_DIAGNOSTICS_ENABLED=1 (with BUCKY_SSM_TARGETS) to use the "
+            "read-only SSM channel, otherwise diagnostics use the mock backend"
+        )
+
+    from . import diagnostics_ssm
+
+    return diagnostics_ssm.build_ssm_backend()
 
 
 # ---------------------------------------------------------------------------

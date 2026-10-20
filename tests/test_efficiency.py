@@ -95,7 +95,7 @@ def test_efficiency_ranked_is_separate_from_keyword_alternatives(service, restar
 
 
 def test_match_without_efficiency_toggle_off(service, restart_ticket, monkeypatch):
-    monkeypatch.setenv("LOKI_EFFICIENCY", "0")
+    monkeypatch.setenv("BUCKY_EFFICIENCY", "0")
     result = service.preview_match(restart_ticket)
     assert result["matched"] is True
     assert result["efficiency_enabled"] is False

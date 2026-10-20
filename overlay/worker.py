@@ -45,9 +45,9 @@ from .service import OverlayService
 from .worker_transport import TaskQueue, TaskReporter, WorkItem
 
 LEASE_NAME = "simulation-worker"
-DEFAULT_LEASE_TTL_SECONDS = int(os.getenv("LOKI_WORKER_LEASE_TTL_SECONDS", "120"))
-DEFAULT_WAIT_SECONDS = int(os.getenv("LOKI_WORKER_WAIT_SECONDS", "20"))
-DEFAULT_BATCH = int(os.getenv("LOKI_WORKER_BATCH", "1"))
+DEFAULT_LEASE_TTL_SECONDS = int(os.getenv("BUCKY_WORKER_LEASE_TTL_SECONDS", "120"))
+DEFAULT_WAIT_SECONDS = int(os.getenv("BUCKY_WORKER_WAIT_SECONDS", "20"))
+DEFAULT_BATCH = int(os.getenv("BUCKY_WORKER_BATCH", "1"))
 
 
 @dataclass

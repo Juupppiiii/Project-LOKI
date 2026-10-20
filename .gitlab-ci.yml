@@ -1,9 +1,9 @@
-# PROJECT STEPH — GitLab CI/CD Pipeline
+# PROJECT BUCKY â€” GitLab CI/CD Pipeline
 #
 # Three stages:
-#   test    — lint + full pytest suite (122 tests, no external deps)
-#   build   — Docker image build (validates the container works)
-#   deploy  — placeholder for future AWS ECS deployment
+#   test    â€” lint + full pytest suite (122 tests, no external deps)
+#   build   â€” Docker image build (validates the container works)
+#   deploy  â€” placeholder for future AWS ECS deployment
 #
 # Runs on every push and merge request. No secrets needed for test/build.
 
@@ -14,9 +14,9 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  LOKI_EXECUTION_MODE: "simulation"
-  LOKI_STORE_BACKEND: "sqlite"
-  LOKI_ENFORCE_SOD: "0"          # CI runs same-actor approve+execute in tests
+  BUCKY_EXECUTION_MODE: "simulation"
+  BUCKY_STORE_BACKEND: "sqlite"
+  BUCKY_ENFORCE_SOD: "0"          # CI runs same-actor approve+execute in tests
 
 # ---------------------------------------------------------------------------
 # Stage: test
@@ -112,7 +112,7 @@ docker-build:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # ---------------------------------------------------------------------------
-# Stage: deploy (placeholder — blocked on AWS account/bootstrap decision)
+# Stage: deploy (placeholder â€” blocked on AWS account/bootstrap decision)
 # ---------------------------------------------------------------------------
 
 deploy-dev:

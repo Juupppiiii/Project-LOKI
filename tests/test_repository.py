@@ -1,5 +1,5 @@
 """Repository tests. SQLite always runs; PostgreSQL runs only when a test
-database is reachable via LOKI_TEST_POSTGRES_DSN, otherwise it is skipped.
+database is reachable via BUCKY_TEST_POSTGRES_DSN, otherwise it is skipped.
 
 The same test bodies run against both backends so the adapters stay in parity.
 """
@@ -50,9 +50,9 @@ def repo(request, sqlite_path):
     if backend == "sqlite":
         store = _make_sqlite(sqlite_path)
     else:
-        dsn = os.getenv("LOKI_TEST_POSTGRES_DSN")
+        dsn = os.getenv("BUCKY_TEST_POSTGRES_DSN")
         if not dsn:
-            pytest.skip("set LOKI_TEST_POSTGRES_DSN to run PostgreSQL repository tests")
+            pytest.skip("set BUCKY_TEST_POSTGRES_DSN to run PostgreSQL repository tests")
         store = _make_postgres(dsn)
     try:
         yield store

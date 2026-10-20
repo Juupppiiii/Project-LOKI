@@ -30,7 +30,7 @@ pytestmark = pytest.mark.unit
 
 CREDS_PRESENT = {
     "instance": "dev12345.service-now.com",
-    "username": "svc_loki_write",
+    "username": "svc_bucky_write",
     "password": "secret",
     "present": True,
 }
@@ -64,7 +64,7 @@ class FakeTransport:
         return self._responses.pop(0)
 
 
-def _servicenow_envelope_and_step(service, restart_ticket, *, note="LOKI update", sys_id="", mode="live"):
+def _servicenow_envelope_and_step(service, restart_ticket, *, note="BUCKY update", sys_id="", mode="live"):
     """Build a well-formed envelope (and its step) for servicenow.work_note.post.
 
     Proposes the run exactly once; callers must not propose the same ticket
@@ -97,7 +97,7 @@ def _servicenow_envelope_and_step(service, restart_ticket, *, note="LOKI update"
     return envelope, step
 
 
-def _servicenow_envelope(service, restart_ticket, *, note="LOKI update", sys_id="", mode="live"):
+def _servicenow_envelope(service, restart_ticket, *, note="BUCKY update", sys_id="", mode="live"):
     envelope, _step = _servicenow_envelope_and_step(
         service, restart_ticket, note=note, sys_id=sys_id, mode=mode
     )
@@ -110,7 +110,7 @@ def _servicenow_envelope(service, restart_ticket, *, note="LOKI update", sys_id=
 
 
 def test_dry_run_makes_no_http_call(monkeypatch, service, restart_ticket):
-    monkeypatch.delenv("LOKI_SERVICENOW_WRITE_ENABLED", raising=False)
+    monkeypatch.delenv("BUCKY_SERVICENOW_WRITE_ENABLED", raising=False)
     transport = FakeTransport([])  # any call would raise
     conn = ServiceNowConnector(
         transport=transport, credentials_provider=lambda: CREDS_PRESENT
@@ -126,7 +126,7 @@ def test_dry_run_makes_no_http_call(monkeypatch, service, restart_ticket):
 
 
 def test_write_enabled_patches_work_note_with_supplied_sys_id(monkeypatch, service, restart_ticket):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     transport = FakeTransport([FakeResponse(200, {"result": {"sys_id": "abc"}})])
     conn = ServiceNowConnector(
         transport=transport, credentials_provider=lambda: CREDS_PRESENT
@@ -146,7 +146,7 @@ def test_write_enabled_patches_work_note_with_supplied_sys_id(monkeypatch, servi
 
 
 def test_write_enabled_resolves_sys_id_then_patches(monkeypatch, service, restart_ticket):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     transport = FakeTransport([
         FakeResponse(200, {"result": [{"sys_id": "resolved-sys-id", "number": "INC0012345"}]}),  # lookup
         FakeResponse(200, {"result": {}}),  # patch
@@ -163,7 +163,7 @@ def test_write_enabled_resolves_sys_id_then_patches(monkeypatch, service, restar
 
 
 def test_credentials_absent_raises(monkeypatch, service, restart_ticket):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     conn = ServiceNowConnector(
         transport=FakeTransport([]),
         credentials_provider=lambda: {"instance": "", "username": "", "password": "", "present": False},
@@ -174,7 +174,7 @@ def test_credentials_absent_raises(monkeypatch, service, restart_ticket):
 
 
 def test_empty_note_is_refused(monkeypatch, service, restart_ticket):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     conn = ServiceNowConnector(
         transport=FakeTransport([]), credentials_provider=lambda: CREDS_PRESENT
     )
@@ -185,7 +185,7 @@ def test_empty_note_is_refused(monkeypatch, service, restart_ticket):
 
 @pytest.mark.parametrize("status", [401, 403, 500])
 def test_http_errors_raise_connector_failure(monkeypatch, service, restart_ticket, status):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     transport = FakeTransport([FakeResponse(status, text="boom")])
     conn = ServiceNowConnector(
         transport=transport, credentials_provider=lambda: CREDS_PRESENT
@@ -209,7 +209,7 @@ def _live_gateway_with_fake(transport, creds=CREDS_PRESENT):
 
 
 def test_live_gateway_dispatches_servicenow_action(monkeypatch, service, restart_ticket):
-    monkeypatch.setenv("LOKI_SERVICENOW_WRITE_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_SERVICENOW_WRITE_ENABLED", "1")
     transport = FakeTransport([FakeResponse(200, {"result": {}})])
     gateway = _live_gateway_with_fake(transport)
 
@@ -223,6 +223,6 @@ def test_live_gateway_dispatches_servicenow_action(monkeypatch, service, restart
 
 
 def test_simulation_default_does_not_register_servicenow(monkeypatch):
-    monkeypatch.delenv("LOKI_EXECUTION_MODE", raising=False)
+    monkeypatch.delenv("BUCKY_EXECUTION_MODE", raising=False)
     gateway = ActionGateway()
     assert "servicenow" not in gateway._connectors

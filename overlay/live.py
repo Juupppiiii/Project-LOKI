@@ -75,25 +75,25 @@ SETTINGS_KEY = "live_feed"
 #                 code, not the `active` flag), or None if it has no such notion
 WORK_TYPES: dict[str, dict[str, Any]] = {
     "incident": {
-        "label": "Incidents — things that broke",
+        "label": "Incidents â€” things that broke",
         "table": "incident",
         "clause": "u_record_type=incident",
         "active_field": "active=true",
     },
     "change": {
-        "label": "Changes — planned work",
+        "label": "Changes â€” planned work",
         "table": "change_request",
         "clause": None,
         "active_field": "active=true",
     },
     "request": {
-        "label": "Requests — someone asked for something",
+        "label": "Requests â€” someone asked for something",
         "table": "sc_request",
         "clause": None,
         "active_field": "active=true",
     },
     "problem": {
-        "label": "Problems — root-cause investigations",
+        "label": "Problems â€” root-cause investigations",
         "table": "problem",
         "clause": None,
         "active_field": "active=true",
@@ -414,7 +414,7 @@ class LiveFeed:
         self._lease_name = "live-feed"
         self._owner_id = new_lease_owner("live-feed")
         self._lease: Lease | None = None
-        self._lease_ttl = max(60, int(os.getenv("LOKI_LIVE_LEASE_TTL_SECONDS", "120")))
+        self._lease_ttl = max(60, int(os.getenv("BUCKY_LIVE_LEASE_TTL_SECONDS", "120")))
         self._renew_interval = max(10, min(30, self._lease_ttl // 3))
         self.last_error: str | None = None
         self.last_poll_at: str | None = None

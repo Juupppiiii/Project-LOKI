@@ -1,4 +1,4 @@
-"""Tests for the read-only diagnostic gateway (Project STEPH workstream D).
+"""Tests for the read-only diagnostic gateway (Project BUCKY workstream D).
 
 The guarantees under test are mostly about what the gateway must REFUSE:
   * only catalogued operation ids run; unknown ids are denied (default-deny);
@@ -103,9 +103,9 @@ def test_ip_literal_target_is_accepted(gw):
 def test_live_requires_target_allowlist(monkeypatch):
     # Force the gateway to believe it is live, with an injected mock-like backend
     # so nothing real is touched, to exercise the allowlist branch.
-    monkeypatch.setenv("LOKI_EXECUTION_MODE", "live")
-    monkeypatch.setenv("LOKI_DIAGNOSTICS_ENABLED", "1")
-    monkeypatch.setenv("LOKI_DIAGNOSTICS_TARGETS", "allowed-host")
+    monkeypatch.setenv("BUCKY_EXECUTION_MODE", "live")
+    monkeypatch.setenv("BUCKY_DIAGNOSTICS_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_DIAGNOSTICS_TARGETS", "allowed-host")
 
     class _B:
         name = "test-live-backend"
@@ -123,10 +123,10 @@ def test_live_requires_target_allowlist(monkeypatch):
 
 
 def test_live_enforces_port_allowlist(monkeypatch):
-    monkeypatch.setenv("LOKI_EXECUTION_MODE", "live")
-    monkeypatch.setenv("LOKI_DIAGNOSTICS_ENABLED", "1")
-    monkeypatch.setenv("LOKI_DIAGNOSTICS_TARGETS", "allowed-host")
-    monkeypatch.setenv("LOKI_DIAGNOSTICS_PORTS", "443")
+    monkeypatch.setenv("BUCKY_EXECUTION_MODE", "live")
+    monkeypatch.setenv("BUCKY_DIAGNOSTICS_ENABLED", "1")
+    monkeypatch.setenv("BUCKY_DIAGNOSTICS_TARGETS", "allowed-host")
+    monkeypatch.setenv("BUCKY_DIAGNOSTICS_PORTS", "443")
 
     class _B:
         name = "b"
