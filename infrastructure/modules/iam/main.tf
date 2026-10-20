@@ -152,9 +152,9 @@ resource "aws_iam_role_policy" "ssm_diagnostics" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "SendReadOnlyPowerShell"
-        Effect   = "Allow"
-        Action   = ["ssm:SendCommand"]
+        Sid    = "SendReadOnlyPowerShell"
+        Effect = "Allow"
+        Action = ["ssm:SendCommand"]
         Resource = concat(
           var.ssm_diagnostic_instance_arns,
           ["arn:aws:ssm:*::document/AWS-RunPowerShellScript"],
