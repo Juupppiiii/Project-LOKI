@@ -34,7 +34,8 @@ output
 infra/node_modules
 infra/cdk.out
 
-# Raw discovery exports are not web-runtime dependencies.
-data/*
-!data/incidents.csv
+# Raw discovery exports are not web-runtime dependencies. The real
+# data/incidents.csv is git-ignored and absent in CI; the image ships the small
+# tracked sample_data/incidents.csv instead (see Dockerfile).
+data
 automation_candidates.csv

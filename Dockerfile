@@ -43,7 +43,11 @@ RUN pip install --no-cache-dir --requirement requirements-api.txt \
 COPY --chown=bucky:bucky overlay ./overlay
 COPY --chown=bucky:bucky system2 ./system2
 COPY --chown=bucky:bucky src ./src
-COPY --chown=bucky:bucky data/incidents.csv ./data/incidents.csv
+# The real data/incidents.csv is git-ignored (it holds real ticket data), so it
+# is NOT present in a clean CI checkout. Ship the small, tracked sample instead,
+# placed where the app expects it. In simulation the app reads tickets live from
+# ServiceNow; this file only seeds the sample-ticket dropdown.
+COPY --chown=bucky:bucky sample_data/incidents.csv ./data/incidents.csv
 COPY --from=ui-build --chown=bucky:bucky /build/dist ./overlay/ui/dist
 
 USER bucky
