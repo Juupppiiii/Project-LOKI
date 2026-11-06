@@ -1,45 +1,29 @@
-# Secrets / environment
-.env
-*.env
-!.env.example
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
-.pytest_cache/
+.env
+
+# Data & indexes (large, local-only)
+data/raw/
+data/index/
+*.duckdb
+
+# Node
+node_modules/
+ui/dist/
 
 # IDE
 .vscode/
+.kiro/
+.idea/
 
-# Generated data & artifacts
-data/
-output/
-*.duckdb
-automation_candidates.csv
+# OS
+.DS_Store
+Thumbs.db
 
-# Pulled ticket data (large, contains real ServiceNow content — rebuild with scripts)
-knowledge/tickets/
-
-# Overlay runtime / scratch state (SQLite + WAL sidecars)
-overlay_tasks.db
-overlay_demo.db
-demo_agent_test.db
-smoke_test.db
-*.db-shm
-*.db-wal
-
-# React front end: dependencies and build output are regenerated
-overlay/ui/node_modules/
-overlay/ui/dist/
-
-# Terraform working dirs, state, and crash logs (lock file IS committed)
-**/.terraform/
-*.tfstate
-*.tfstate.*
-*.tfplan
-crash.log
-crash.*.log
-# Local variable files may contain account IDs / ARNs — commit only *.example
-*.tfvars
-!*.tfvars.example
+# Build
+*.egg
+dist/
+build/

@@ -1,186 +1,110 @@
-# Project BUCKY â€” repository map
+# Bucky — IT Ticket Resolution RAG
 
-Human-in-the-loop ticket automation. **Execution is simulation only** â€” nothing
-in this repo writes to or acts on a real target system.
+A ticket comes in. Bucky instantly retrieves the most similar resolved tickets
+from your historical corpus and asks Claude to synthesize the best resolution
+approach — with citations. The engineer reads it and does the work; the AI saves
+them the research time.
 
-This file is the map: it tells you which folder is for what, so you can find the
-right place without opening everything. Each area has its own deeper README
-where noted.
+Built on **LlamaIndex + ChromaDB + Amazon Bedrock (Claude) + FastAPI + React**.
 
----
+## Quick start
 
-## The quickest answer: "which folder is which?"
+```bash
+# 1. Create a virtual environment and install dependencies
+python -m venv .venv
+.venv\Scripts\activate         # Windows
+pip install -r requirements.txt
 
-| Folder / file | Concern | In one line |
+# 2. Copy .env.example to .env and fill in your AWS / ServiceNow credentials
+copy .env.example .env
+
+# 3. Ingest your resolved ticket corpus into the vector store
+python -m bucky.ingest --knowledge path\to\knowledge
+
+# 4. Start the server
+python -m uvicorn bucky.api:app --host 127.0.0.1 --port 8800
+
+# 5. Open http://127.0.0.1:8800 in your browser
+```
+
+## How it works
+
+```
+New ticket ──► LlamaIndex retriever
+                    │
+                    ├─ ChromaDB vector search (Titan embeddings)
+                    │   → top-K similar resolved tickets with resolutions
+                    │
+                    ▼
+               Claude (Bedrock Converse)
+                    │
+                    └─ Synthesize a cited resolution recommendation
+                         → engineer reads it, does the work themselves
+```
+
+1. **Ingest** — `python -m bucky.ingest` reads your resolved ticket JSON
+   (the structured `knowledge/tickets/by_group/*.json` corpus or a flat
+   `resolved_tickets.json`), splits the text, embeds it with Amazon Titan, and
+   stores it in a local ChromaDB vector database.
+
+2. **Query** — when you submit a ticket (via the UI or `POST /api/query`), the
+   retriever finds the most similar historical resolutions by vector similarity.
+
+3. **Synthesize** — Claude reads the retrieved evidence and your ticket, then
+   writes a grounded recommendation with clear steps and citations. If the
+   evidence is weak, it says so.
+
+## Project structure
+
+```
+bucky/              The Python package
+  api.py            FastAPI server (POST /api/query, GET /api/health)
+  rag.py            RAG engine: ingest, retrieve, synthesize
+  models.py         Pydantic request/response models
+  config.py         Environment configuration
+  ingest.py         CLI: python -m bucky.ingest
+
+ui/                 React + Vite frontend
+  src/App.jsx       The search-and-results interface
+  src/styles.css    Dark theme UI styles
+
+tests/              Pytest suite
+data/               Git-ignored: raw ticket CSVs, vector index (ChromaDB)
+```
+
+## API
+
+| Method | Path | Description |
 |---|---|---|
-| `deploy/` | **Deployment runbook** | Single entry point for the AWS deploy: steps, blockers, config. Points at the files below. |
-| `infrastructure/` | **AWS / ECS infrastructure (Terraform)** | All the cloud: ECS Fargate (api + worker), ALB, Aurora, SQS, Step Functions. Terraform modules in the `pace/manila` convention. |
-| `Dockerfile`, `.dockerignore` | **Container build** | How the app is packaged into the image ECS runs. |
-| `overlay/` | **The running application** | The FastAPI service + React UI. This is the thing the container runs and ECS hosts. |
-| `system2/` | **Procedure engine** | The rulebook: match a ticket to a procedure, render/simulate its steps. |
-| `src/` | **Discovery pipeline (offline)** | Pulls ServiceNow data and finds automation candidates. Analytics, not the runtime. |
-| `tests/` | **Test suite** | pytest for `overlay/` + `system2/`; CDK template tests live under `infra/test/`. |
-| `data/` | **Input data** | ServiceNow CSV exports the app and pipeline read. |
-| `output/` | **Generated analysis** | Reports/PDFs produced by the discovery pipeline and doc builders. |
-| `sample_data/` | **Example input** | A small `incidents.csv` for trying things without the full export. |
-| `knowledge/` | **Knowledge base** | All knowledge artifacts in one place: pulled tickets, handbooks, dictionaries. |
-| `scripts/` | **Operational / one-off scripts** | Run directly (migration, demo, doc builders, knowledge pull). See below. |
-| `docs/` | **Project docs** | Progress notes and archived build history. |
-| *(root `requirements*.txt`, `pytest.ini`)* | **Dependencies & test config** | The three dependency sets and pytest markers. |
+| `POST` | `/api/query` | Submit a ticket, get similar resolutions + AI recommendation |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/index/status` | Vector index status and document count |
 
-> **Rule of thumb:** `infra/` is *where it runs*, `overlay/` is *what runs*,
-> `system2/` is *the rules it runs*, `src/` is *the offline analysis that decided
-> what was worth automating*.
+## Configuration
 
----
-
-## 1. AWS / ECS infrastructure â€” `infrastructure/` (Terraform)
-
-Everything cloud, as **Terraform** in the TP ICAP `pace/manila` convention:
-a `modules/` library composed by `environments/dev/`. The web/API tier runs on
-**ECS Fargate** behind an internal ALB; the worker consumes SQS; connector work
-is modelled with Step Functions.
-
-```
-infrastructure/
-  environments/dev/     Root module: backend, providers (assume_role), variables, main, outputs
-  modules/
-    ecr/                Image repositories (api, worker)
-    ecs-cluster/        Fargate cluster + shared log group
-    s3/                 ALB access-logs bucket
-    rds/                Aurora PostgreSQL Serverless v2 + RDS Proxy + secret
-    alb/                Internal ALB + HTTPS listener + target group
-    sqs/                Simulation FIFO queue + DLQ
-    stepfunctions/      Run-workflow state machine
-    iam/                Execution role + per-service task roles
-    ecs-service/        API + worker task definitions and services
-```
-
-The services default to **single-task** and **simulation mode** until the
-multi-write transaction and claim-recovery work lands. See
-`infrastructure/README.md` and `deploy/README.md`.
-
-## 2. Container build â€” `Dockerfile` + `.dockerignore`
-
-The image ECS runs. Two-stage build: stage 1 builds the React UI from its
-lockfile; stage 2 is a slim Python runtime that serves the API as a non-root
-user on port 8800. `.dockerignore` keeps secrets and local state out of the
-build context.
-
-## 3. The running application â€” `overlay/`
-
-The FastAPI service and the React UI it serves. This is the code inside the
-container. Full detail (run steps, upload formats, auth, safety controls,
-config) is in `overlay/README.md`. Highlights:
-
-```
-overlay/
-  api.py            FastAPI transport (the contract every client speaks)
-  service.py        Application layer â€” the authority on all rules
-  domain.py         Pure model (no framework, DB, or transport)
-  risk.py           Default-deny risk classification
-  planner.py        Ticket + procedure -> approvable plan
-  store.py          SQLite repository (local default)
-  postgres_store.py PostgreSQL repository (production backend)
-  action_gateway.py Default-deny simulation execution boundary
-  connectors.py     Connector protocol (approval-bound envelope)
-  worker.py         Background worker: consumes dispatched steps, reports to Step Functions
-  worker_*.py       Worker transport seam (in-memory + SQS/Step Functions) and entrypoint
-  auth.py           Entra OIDC sign-in + session cookies
-  live.py           Read-only ServiceNow polling
-  ui/               React app: Queue, Investigate, Knowledge, and Live workspaces
-```
-
-The **Investigate** workspace assembles each live ticket into a downloadable
-evidence pack: observed ServiceNow facts, historical resolution clusters,
-ranked deterministic recommendations, bounded read-only diagnostics, optional
-Opus analysis, limitations, governance context, and durable engineer feedback.
-
-## 4. Procedure engine â€” `system2/`
-
-The domain-agnostic rulebook. Matches a ticket to a procedure and renders or
-simulates its steps. Knowledge lives in `system2/procedures.json`. Layer C (real
-execution) is hard-disabled. See the System 2 section of `PROGRESS.md`.
-
-## 5. Discovery pipeline (offline) â€” `src/`
-
-Not the runtime. Pulls ServiceNow data, loads it into DuckDB, and scores
-automation candidates. `src/database.py` (open in your editor) is this: it loads
-CSVs into DuckDB for analysis â€” read-only, offline, not a governed runtime store.
-Run via `python src/main.py`. See the System 1 section of `docs/PROGRESS.md`.
-
-## 6. Operational / one-off scripts â€” `scripts/`
-
-One-off tooling, run directly. Each script resolves the project root from its
-own location (`__file__`), so it works from any working directory â€” run them as
-`python scripts/<name>.py`. The app-importing ones put the project root on
-`sys.path` before importing `overlay`/`system2`.
-
-| Script | What it does |
-|---|---|
-| `01_pull_closed_incidents.py` | Pull closed incidents from ServiceNow (read-only). |
-| `02_build_knowledge_json.py` | Structure pulled tickets into JSON knowledge files. |
-| `03_mine_resolutions.py` | Cluster recurring resolution patterns. |
-| `04_autodraft_procedures.py` | Auto-draft procedures from patterns using Opus 5. |
-| `05_compare_matchers.py` | Shadow-compare keyword vs semantic matchers. |
-| `06_demo_agent_run.py` | End-to-end simulated agent run. |
-| `07_calibrate_recommendations.py` | Calibrate recommendation confidence thresholds. |
-| `migrate_sqlite_to_postgres.py` | Migrate SQLite to PostgreSQL (dry-run by default). |
-
-See `scripts/README.md` for the full guide and the pipeline order.
-
-## 7. Deployment â€” `deploy/`
-
-A runbook for deploying BUCKY to AWS (ECS + Aurora + Bedrock). The actual files
-(`Dockerfile`, `requirements-api.txt`, `infra/`) stay in their functional
-locations (Docker/CDK require it), but `deploy/README.md` is the single entry
-point: deployment steps, blockers, and runtime configuration. See also
-`infra/README.md` for CDK-specific detail.
-
-## 8. Docs â€” `docs/`
-
-| File | Purpose |
-|---|---|
-| `docs/ARCHITECTURE.md` | Current system architecture: module map, data planes, safety model, storage, AWS shape. |
-| `docs/PROGRESS.md` | Living status of all three systems and findings. |
-| `docs/NATIVE_AWS_ARCHITECTURE.md` | Recommended ECS-native AWS target architecture. |
-
-## 9. Dependencies & test config (repository root)
-
-| File | Purpose |
-|---|---|
-| `requirements.txt` | Discovery pipeline (`src/`) dependencies. |
-| `requirements-api.txt` | Application (`overlay/`) runtime dependencies. |
-| `requirements-dev.txt` | Test/lint/dev tooling. |
-| `pytest.ini` | Test configuration and markers. |
-
-## 10. Data & generated artifacts
-
-| Folder | Tracked? | Contents |
+| Variable | Default | Purpose |
 |---|---|---|
-| `data/` | git-ignored | ServiceNow CSV exports (input). |
-| `output/` | git-ignored | Generated reports, PDFs, summaries. |
-| `sample_data/` | tracked | Small example `incidents.csv`. |
-| `*.duckdb` | git-ignored | DuckDB analytics databases (regenerated). |
+| `AWS_REGION` | `eu-west-1` | AWS region for Bedrock |
+| `BEDROCK_MODEL_ID` | `eu.anthropic.claude-opus-5` | Claude model for synthesis |
+| `SN_INSTANCE` | — | ServiceNow instance (for future live pulling) |
+| `CHROMA_PERSIST_DIR` | `data/index/chroma` | Where ChromaDB stores the index |
+| `BUCKY_TOP_K` | `8` | Number of similar tickets to retrieve |
+| `BUCKY_SIMILARITY_THRESHOLD` | `0.3` | Minimum similarity to include a result |
 
-Local SQLite runtime databases (`overlay_tasks.db`, `overlay_demo.db`,
-`smoke_test.db` and their `-wal`/`-shm` sidecars) are git-ignored scratch state
-and are safe to delete â€” they are recreated on demand.
+## Data backup
 
----
+Your historical ticket corpus (22k resolved tickets) is backed up at:
+`C:\Users\d_jupiterdimalibot\bucky_data_backup\`
 
-## Running the pieces
+To ingest it:
+```bash
+python -m bucky.ingest --knowledge C:\Users\d_jupiterdimalibot\bucky_data_backup\knowledge
+```
 
-```powershell
-# Application (API + UI) locally
-python -m uvicorn overlay.api:app --host 127.0.0.1 --port 8800   # http://127.0.0.1:8800
+## Development
 
-# Discovery pipeline
-python src/main.py
-
-# Tests
+```bash
+pip install -r requirements-dev.txt
 python -m pytest -q
-
-# Infrastructure (validate Terraform; nothing is deployed)
-cd infrastructure/environments/dev ; terraform init -backend=false ; terraform validate
+python -m ruff check bucky tests
 ```
