@@ -114,8 +114,9 @@ streamlit run src/dashboard.py     # dashboard
       vs "password reset")
 - [ ] Add a resolution-patterns view to the dashboard
 - [ ] Decide whether other tables need a "manual" filter (signal differs per table)
-- [ ] Clean up diagnostic scripts (preflight, counts, test_extract,
-      discover_manual, distribution, check_resolution_fields)
+- [x] Clean up diagnostic scripts (preflight, counts, test_extract,
+      discover_manual, distribution, check_resolution_fields) — removed in the
+      2026-11 cleanup refactor.
 - [ ] Rotate the ServiceNow password (it was pasted in chat)
 
 ---

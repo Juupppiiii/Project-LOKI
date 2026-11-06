@@ -30,6 +30,9 @@ export default function RunDetail({ run, audit, onChanged, busy }) {
   const [params, setParams] = useState(run.parameters);
   const [evidence, setEvidence] = useState({});
   const [msg, setMsg] = useState(null);
+  // Which chunk the last action touched, so its result shows next to that
+  // chunk's buttons (not only in the message line far up the page).
+  const [activeChunkId, setActiveChunkId] = useState(null);
 
   // Reset local edits when a different run is selected.
   useEffect(() => {
@@ -201,6 +204,8 @@ export default function RunDetail({ run, audit, onChanged, busy }) {
           setEvidence={setEvidence}
           act={act}
           busy={busy}
+          msg={activeChunkId === chunk.chunk_id ? msg : null}
+          onAct={() => setActiveChunkId(chunk.chunk_id)}
         />
       ))}
 
@@ -247,7 +252,13 @@ export default function RunDetail({ run, audit, onChanged, busy }) {
 
 /* ------------------------------------------------------------------ chunk */
 
-function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy }) {
+function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy, msg, onAct }) {
+  // Wrap act() so this chunk becomes the one whose result is shown inline.
+  const actHere = (fn, okText) => {
+    onAct?.();
+    return act(fn, okText);
+  };
+
   const steps = chunk.step_ids
     .map((id) => run.steps.find((s) => s.step_id === id))
     .filter(Boolean);
@@ -272,7 +283,7 @@ function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy }) {
         className="btn btn-run btn-sm"
         disabled={busy}
         onClick={() =>
-          act(
+          actHere(
             () => api.executeChunk(run.run_id, chunk.chunk_id),
             "Done. The agent stopped where it had to."
           )
@@ -290,7 +301,7 @@ function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy }) {
           disabled={blocked || busy}
           title={blocked ? "Fill in the missing details first" : undefined}
           onClick={() =>
-            act(
+            actHere(
               () =>
                 api.decideChunk(
                   run.run_id,
@@ -311,7 +322,7 @@ function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy }) {
           onClick={() => {
             const reason = prompt("Why are you refusing this group?");
             if (reason === null) return;
-            act(
+            actHere(
               () =>
                 api.decideChunk(
                   run.run_id,
@@ -342,6 +353,7 @@ function Chunk({ chunk, run, nextStep, evidence, setEvidence, act, busy }) {
           {controls}
         </span>
       </div>
+      {msg ? <Message kind={msg.kind}>{msg.text}</Message> : null}
       <div className="chunk-body">
         {steps.map((step) => (
           <Step

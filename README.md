@@ -124,10 +124,8 @@ own location (`__file__`), so it works from any working directory â€” run t
 | `04_autodraft_procedures.py` | Auto-draft procedures from patterns using Opus 5. |
 | `05_compare_matchers.py` | Shadow-compare keyword vs semantic matchers. |
 | `06_demo_agent_run.py` | End-to-end simulated agent run. |
+| `07_calibrate_recommendations.py` | Calibrate recommendation confidence thresholds. |
 | `migrate_sqlite_to_postgres.py` | Migrate SQLite to PostgreSQL (dry-run by default). |
-| `08_build_architecture_pdf.py` | Generate the architecture PDF. |
-| `09_build_architecture_diagram_pdf.py` | Generate the architecture diagram PDF. |
-| `10_build_powerpoint.py` | Generate the PowerPoint overview deck. |
 
 See `scripts/README.md` for the full guide and the pipeline order.
 
@@ -143,9 +141,9 @@ point: deployment steps, blockers, and runtime configuration. See also
 
 | File | Purpose |
 |---|---|
+| `docs/ARCHITECTURE.md` | Current system architecture: module map, data planes, safety model, storage, AWS shape. |
 | `docs/PROGRESS.md` | Living status of all three systems and findings. |
 | `docs/NATIVE_AWS_ARCHITECTURE.md` | Recommended ECS-native AWS target architecture. |
-| `docs/Phase1_Conversation_Archive.md` | Archived build history. |
 
 ## 9. Dependencies & test config (repository root)
 
