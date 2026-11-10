@@ -1,4 +1,4 @@
-"""Configuration loaded from environment / .env file."""
+"""Shared configuration loaded from environment / .env file."""
 
 from __future__ import annotations
 

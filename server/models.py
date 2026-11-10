@@ -1,4 +1,4 @@
-"""Pydantic models for the API request/response contract."""
+"""Shared Pydantic models for the API request/response contract."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class Recommendation(BaseModel):
     summary: str
     steps: list[str] = Field(default_factory=list)
     cited_tickets: list[str] = Field(default_factory=list)
-    confidence: str = ""  # high / medium / low / insufficient
+    confidence: str = ""
 
 
 class QueryResponse(BaseModel):

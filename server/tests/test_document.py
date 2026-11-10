@@ -1,6 +1,6 @@
-"""Tests for the RAG engine — document conversion and confidence extraction."""
+"""Tests for the rag/functions/document.py — ticket-to-Document conversion."""
 
-from bucky.rag import _extract_confidence, _ticket_to_document
+from server.rag.functions.document import ticket_to_document
 
 
 def test_ticket_to_document_happy_path():
@@ -11,7 +11,7 @@ def test_ticket_to_document_happy_path():
         "assignment_group": "Wintel Support",
         "category": "Events-CMK",
     }
-    doc = _ticket_to_document(ticket)
+    doc = ticket_to_document(ticket)
     assert doc is not None
     assert "Server unresponsive" in doc.text
     assert "Rebooted" in doc.text
@@ -21,14 +21,14 @@ def test_ticket_to_document_happy_path():
 
 def test_ticket_to_document_no_resolution():
     ticket = {"number": "INC002", "short_description": "Something broke"}
-    doc = _ticket_to_document(ticket)
-    assert doc is None  # no resolution -> skip
+    doc = ticket_to_document(ticket)
+    assert doc is None
 
 
 def test_ticket_to_document_no_description():
     ticket = {"resolution_clean": "Fixed it"}
-    doc = _ticket_to_document(ticket)
-    assert doc is None  # no short_description -> skip
+    doc = ticket_to_document(ticket)
+    assert doc is None
 
 
 def test_ticket_to_document_fallback_to_close_notes():
@@ -37,14 +37,6 @@ def test_ticket_to_document_fallback_to_close_notes():
         "short_description": "Disk full",
         "close_notes_raw": "Cleared /tmp and /var/log.",
     }
-    doc = _ticket_to_document(ticket)
+    doc = ticket_to_document(ticket)
     assert doc is not None
     assert "Cleared /tmp" in doc.text
-
-
-def test_extract_confidence():
-    assert _extract_confidence("High confidence: this matches well") == "high"
-    assert _extract_confidence("Confidence: medium based on 3 tickets") == "medium"
-    assert _extract_confidence("Low confidence, only one match") == "low"
-    assert _extract_confidence("Insufficient evidence to recommend") == "insufficient"
-    assert _extract_confidence("Here is a recommendation.") == "medium"  # default

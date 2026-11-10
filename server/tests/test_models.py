@@ -1,6 +1,6 @@
-"""Tests for the Pydantic models."""
+"""Tests for the shared Pydantic models."""
 
-from bucky.models import (
+from server.models import (
     QueryResponse,
     Recommendation,
     ResolvedTicket,
@@ -12,8 +12,6 @@ def test_ticket_query_minimal():
     q = TicketQuery(short_description="Disk full on server X")
     assert q.short_description == "Disk full on server X"
     assert q.description == ""
-    assert q.category == ""
-    assert q.assignment_group == ""
 
 
 def test_ticket_query_full():

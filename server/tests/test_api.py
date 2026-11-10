@@ -1,8 +1,8 @@
-"""Tests for the FastAPI endpoints."""
+"""Tests for the api/ vertical — FastAPI endpoints."""
 
 from fastapi.testclient import TestClient
 
-from bucky.api import app
+from server.api.app import app
 
 client = TestClient(app)
 
